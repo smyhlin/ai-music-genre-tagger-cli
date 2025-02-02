@@ -1,4 +1,5 @@
 pydantic
+colorama
 audioread==3.0.1
 librosa==0.8.1
 musicnn==0.1.0
