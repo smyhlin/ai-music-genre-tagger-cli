@@ -112,6 +112,7 @@ def get_init_extractor(music_path: str = '', ai_model_count: int = 1, ai_genres_
 
     Performance optimized version using list comprehension and efficient function calls.
     """
+    print(f'ﮩ٨ـﮩﮩ٨ـ♡ﮩ٨ـﮩﮩ٨ـ {music_path.split("/")[-1]} ﮩ٨ـﮩﮩ٨ـ♡ﮩ٨ـﮩﮩ٨ـ')
     model_names: List[str] = {
         1: ['MSD_musicnn_big'],
         2: ['MSD_musicnn_big', 'MTT_musicnn'],
