@@ -1,12 +1,25 @@
 #!filepath: music_tagger.py
 import os
 import logging
-from typing import List, Callable, Optional, Union, Tuple
+from typing import List, Callable, Optional, Union, Tuple, Dict
 
 import mutagen
 from mutagen.mp3 import MP3
 from mutagen.easyid3 import EasyID3
 from mutagen.mp4 import MP4
+from mutagen.flac import FLAC
+from mutagen.oggvorbis import OggVorbis
+from mutagen.oggopus import OggOpus
+from mutagen.oggflac import OggFLAC
+from mutagen.oggspeex import OggSpeex
+from mutagen.wave import WAVE
+from mutagen.aiff import AIFF
+from mutagen.asf import ASF
+from mutagen.apev2 import APEv2
+from mutagen.wavpack import WavPack
+
+# Import necessary modules for handling TextFrame in WAV files
+from mutagen.id3 import ID3, TCON, TextFrame, Encoding
 
 from musicnn_tagger import get_init_extractor
 from lastfm_tagger import get_tags_and_weights
@@ -23,25 +36,53 @@ logger = logging.getLogger(__name__)
 C_AI = Fore.CYAN
 C_LASTFM = Fore.MAGENTA
 C_PROMPT = Fore.YELLOW
-C_GENRE_SUGGESTION = Fore.GREEN  # New color for genre suggestions
+C_GENRE_SUGGESTION = Fore.GREEN
 C_RESET = Style.RESET_ALL
 C_BOLD = Style.BRIGHT
 
-def colored_print(color, text):
+def colored_print(color: str, text: str) -> None:
     """Prints text in the specified color."""
     print(color + text + C_RESET)
 
 class MusicTagger:
     """
     A class to handle music file tagging operations, integrating AI-based and Last.fm genre suggestions,
-    and supporting multiple genres. Enhanced metadata extraction and detailed debug logging.
+    and supporting a wide range of audio file formats.
     """
+
+    SUPPORTED_FORMATS: Dict[str, Dict[str, Union[Callable, List[str]]]] = {
+        '.mp3': {'module': EasyID3, 'alt_module': MP3, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST', 'TPE1', 'TPE2', 'TOPE'], 'title_tags': ['title', 'TITLE', 'TIT2']},
+        '.m4a': {'module': MP4, 'genre_tag': ['\xa9gen'], 'artist_tags': ['\xa9ART', 'aART', 'ART', '\xa9albArtist', '©ART'], 'title_tags': ['\xa9nam', '\xa9Title', 'TITLE', '\xa9title']},
+        '.flac': {'module': FLAC, 'genre_tag': ['GENRE'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']},
+        '.ogg': {'module': OggVorbis, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']}, # OggVorbis for .ogg, more specific types like opus, flac, speex handled below
+        '.opus': {'module': OggOpus, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']},
+        '.oga': {'module': OggFLAC, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']}, # .oga is often Ogg FLAC
+        '.spx': {'module': OggSpeex, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']},
+        '.wav': {'module': WAVE, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']}, # WAVE might need special handling for genres - check mutagen docs if needed
+        '.aiff': {'module': AIFF, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']}, # AIFF genre support might be limited
+        '.aif': {'module': AIFF, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']}, # AIFF genre support might be limited
+        '.asf': {'module': ASF, 'genre_tag': ['genre'], 'artist_tags': ['author', 'Author', 'ARTIST'], 'title_tags': ['title', 'Title', 'TITLE']}, # ASF/WMA/WMV
+        '.wma': {'module': ASF, 'genre_tag': ['genre'], 'artist_tags': ['author', 'Author', 'ARTIST'], 'title_tags': ['title', 'Title', 'TITLE']}, # WMA - using ASF module
+        '.wmv': {'module': ASF, 'genre_tag': ['genre'], 'artist_tags': ['author', 'Author', 'ARTIST'], 'title_tags': ['title', 'Title', 'TITLE']}, # WMV - using ASF module
+        '.ape': {'module': APEv2, 'genre_tag': ['Genre'], 'artist_tags': ['Artist'], 'title_tags': ['Title']},
+        '.wv': {'module': WavPack, 'genre_tag': ['genre'], 'artist_tags': ['artist', 'ARTIST'], 'title_tags': ['title', 'TITLE']}, # .wv for WavPack
+    }
+
     def __init__(self) -> None:
         """Initializes the MusicTagger."""
         pass
 
     def set_genre_tag(self, file_path: str, genres: Union[str, List[str]]) -> bool:
-        """Sets the genre tag(s) for a music file using mutagen.mp4."""
+        """
+        Sets the genre tag(s) for a music file, supporting various file formats.
+
+        Args:
+            file_path (str): Path to the music file.
+            genres (Union[str, List[str]]): Genre or list of genres to set.
+
+        Returns:
+            bool: True if genre tag(s) were set successfully, False otherwise.
+        """
         try:
             if isinstance(genres, str):
                 genre_list = [genres]
@@ -51,29 +92,62 @@ class MusicTagger:
                 logger.error(f"Invalid genre format: {genres}. Expected string or list.")
                 return False
 
-            if file_path.lower().endswith('.mp3'):
-                try:
-                    audio = EasyID3(file_path)
-                except mutagen.id3._util.ID3NoHeaderError:
-                    audio = MP3(file_path, ID3=EasyID3)
-                audio['genre'] = genre_list
-                audio.save()
-            elif file_path.lower().endswith('.m4a'):
-                audio = MP4(file_path)
-                audio['\xa9gen'] = genre_list
-                audio.save()
-            else:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext not in self.SUPPORTED_FORMATS:
                 logger.error(f"Unsupported file format for tagging: {file_path}")
                 return False
 
+            format_config = self.SUPPORTED_FORMATS[ext]
+            module = format_config['module']
+            genre_tag_keys = format_config['genre_tag']
+
+            try:
+                audio = module(file_path)
+            except mutagen. MutagenError as e: # Catch general mutagen errors, e.g., for MP3 files without header
+                if ext == '.mp3' and format_config.get('alt_module'): # Special handling for MP3 with missing header
+                    audio = format_config['alt_module'](file_path, ID3=EasyID3)
+                else:
+                    logger.error(f"Error opening file {file_path} with mutagen: {e}")
+                    return False
+
+            if ext == '.wav':
+                try:
+                    audio_id3 = ID3(file_path)
+                except mutagen.id3._util.ID3NoHeaderError:
+                    audio_id3 = ID3()
+
+                genre_frame = TCON(encoding=Encoding.UTF8, text=genre_list) # Use TCON for genre, UTF8 encoding
+                audio_id3['TCON'] = genre_frame # Assign genre frame
+                audio_id3.save(file_path) # Save ID3 tags to WAV file
+                logger.info(f"Genre tag(s) set to '{genres}' for WAV file: {file_path}")
+                return True
+
+            elif isinstance(audio, EasyID3): #EasyID3 uses list for genre
+                audio['genre'] = genre_list
+            else: # Other formats might expect a single string or handle lists differently.
+                # Setting the first genre tag key with the list of genres.
+                # Mutagen might handle list to string conversion internally if needed, or take the first item.
+                if genre_tag_keys and genre_tag_keys[0]:
+                    audio[genre_tag_keys[0]] = genre_list
+
+            audio.save()
             logger.info(f"Genre tag(s) set to '{genres}' for file: {file_path}")
             return True
+
         except Exception as e:
             logger.error(f"Error processing genre tag for file {file_path}: {e}")
             return False
 
     def process_music_file(self, file_path: str) -> bool:
-        """Processes a single music file with AI and Last.fm genre suggestions."""
+        """
+        Processes a single music file with AI and Last.fm genre suggestions, then sets the genre tag.
+
+        Args:
+            file_path (str): Path to the music file.
+
+        Returns:
+            bool: True if the file was processed (genre tag set or skipped), False if processing failed.
+        """
         ai_genres_dict = get_init_extractor(music_path=file_path, ai_model_count=3, max_genres_return_count=5, min_weight=0.2)
         suggested_genres_ai = list(ai_genres_dict.keys())
 
@@ -96,7 +170,7 @@ class MusicTagger:
             max_len = max(len(suggested_genres_ai), len(suggested_genres_lastfm))
             ai_header = f"{C_AI}AI Genres{C_RESET}"
             lastfm_header = f"{C_LASTFM}Last.fm Genres{C_RESET}"
-            print(f"| {ai_header:<20} | {lastfm_header:<20} |") # Adjust width as needed
+            print(f"| {ai_header:<20} | {lastfm_header:<20} |")
             print(f"|{'-'*22}|{'-'*22}|")
 
             for i in range(max_len):
@@ -117,10 +191,8 @@ class MusicTagger:
             if genre_input:
                 if "," in genre_input:
                     genres = [genre.strip() for genre in genre_input.split(",")]
-                elif genre_input in suggested_genres_all_unique:
-                    genres = genre_input
                 else:
-                    genres = genre_input
+                    genres = genre_input # Allow single genre without comma to be treated as string
                 break
             else:
                 print("Genre cannot be empty. Please enter a genre or type 'skip'.")
@@ -129,7 +201,15 @@ class MusicTagger:
         return self.set_genre_tag(file_path, genres)
 
     def _extract_artist_track_from_filename(self, filename: str) -> Tuple[str, str]:
-        """Extracts artist and track name from filename using heuristics."""
+        """
+        Extracts artist and track name from filename using heuristics.
+
+        Args:
+            filename (str): The filename.
+
+        Returns:
+            Tuple[str, str]: Artist name and track name extracted from the filename.
+        """
         track_name = filename
         artist_name = ""
         separators = [' - ', '-', '—', '_']
@@ -145,22 +225,39 @@ class MusicTagger:
         return artist_name, track_name
 
     def _extract_metadata_from_file(self, file_path: str) -> Tuple[str, str]:
-        """Extracts artist and track name from music file metadata using mutagen with verbose logging."""
+        """
+        Extracts artist and track name from music file metadata using mutagen.
+
+        Args:
+            file_path (str): Path to the music file.
+
+        Returns:
+            Tuple[str, str]: Artist name and track name extracted from metadata, or empty strings if extraction fails.
+        """
         artist_name = ""
         track_name = ""
+        ext = os.path.splitext(file_path)[1].lower()
+
+        if ext not in self.SUPPORTED_FORMATS:
+            logger.debug(f"Unsupported format for metadata extraction: {file_path}")
+            return "", ""
+
+        format_config = self.SUPPORTED_FORMATS[ext]
+        module = format_config['module']
+        artist_tag_keys = format_config['artist_tags']
+        title_tag_keys = format_config['title_tags']
+
         try:
-            if file_path.lower().endswith('.mp3'):
-                audio = EasyID3(file_path)
-                logger.debug(f"EasyID3 tags: {audio.keys()}")
-                artist_list = audio.get('artist', []) or audio.get('ARTIST', []) or audio.get('TPE1', []) or audio.get('TPE2', []) or audio.get('TOPE', [])
-                title_list = audio.get('title', []) or audio.get('TITLE', []) or audio.get('TIT2', [])
-            elif file_path.lower().endswith('.m4a'):
-                audio = MP4(file_path)
-                logger.debug(f"MP4 tags: {audio.keys()}")
-                artist_list = audio.get('\xa9ART', []) or audio.get('aART', []) or audio.get('ART', []) or audio.get('\xa9albArtist', []) or audio.get('©ART', [])
-                title_list = audio.get('\xa9nam', []) or audio.get('\xa9Title', []) or audio.get('TITLE', []) or audio.get('\xa9title', [])
-            else:
-                return "", ""
+            audio = module(file_path)
+            logger.debug(f"Tags for {file_path} ({ext}): {audio.keys()}")
+
+            artist_list = []
+            for tag in artist_tag_keys:
+                artist_list.extend(audio.get(tag, []))
+
+            title_list = []
+            for tag in title_tag_keys:
+                title_list.extend(audio.get(tag, []))
 
             artist_name_list = [str(artist).strip() for artist in artist_list if artist]
             track_name_list = [str(title).strip() for title in title_list if title]
@@ -171,7 +268,6 @@ class MusicTagger:
             logger.debug(f"Metadata Artist Tags: {artist_list}, Extracted Artist Name: '{artist_name}'")
             logger.debug(f"Metadata Title Tags: {title_list}, Extracted Track Name: '{track_name}'")
 
-
         except Exception as e:
             logger.error(f"Error extracting metadata from {file_path}: {e}")
             return "", ""
@@ -179,9 +275,17 @@ class MusicTagger:
         return artist_name.strip(), track_name.strip()
 
     def find_music_files(self, root_dir: str) -> List[str]:
-        """Recursively finds music files (.mp3, .m4a) within a root directory."""
+        """
+        Recursively finds music files of supported formats within a root directory.
+
+        Args:
+            root_dir (str): The root directory to search in.
+
+        Returns:
+            List[str]: A list of file paths for supported music files.
+        """
         music_files: list[str] = []
-        extensions = ['.mp3', '.m4a']
+        extensions = list(self.SUPPORTED_FORMATS.keys())
 
         for root, _, files in os.walk(root_dir):
             for file in files:
@@ -191,9 +295,14 @@ class MusicTagger:
         return music_files
 
     def process_directory(self, root_dir: str) -> None:
-        """Recursively processes music files in a directory and sets their genre and lyrics tags."""
+        """
+        Recursively processes music files in a directory and sets their genre tags.
+
+        Args:
+            root_dir (str): The root directory containing music files.
+        """
         music_files = self.find_music_files(root_dir)
-        logger.info(f"Found {len(music_files)} music files in {root_dir}")
+        print(f"🔎 Found {C_PROMPT}{len(music_files)}{C_RESET}{C_BOLD} supported{C_RESET} music files in {C_PROMPT}{root_dir}{C_RESET}")
 
         for file_path in music_files:
             self.process_music_file(file_path)
