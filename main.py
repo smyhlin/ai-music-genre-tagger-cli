@@ -1,8 +1,12 @@
 #!filepath: main.py
 import os
+# Set TF_CPP_MIN_LOG_LEVEL environment variable to suppress TensorFlow messages
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # remove it for debugging
+
 from music_tagger import MusicTagger
 
 if __name__ == "__main__":
+
     music_tagger = MusicTagger()
     music_directory = r"D:\GITHB\FNAF2\test_fldr"  # Replace with the actual path to your music directory
 
