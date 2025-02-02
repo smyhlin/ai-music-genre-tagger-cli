@@ -1,8 +1,69 @@
-#!filepath: tagger.py
+#!filepath: musicnn_tagger/tagger.py
 from .taggram import init_extractor, get_sorted_tag_weights
 from typing import Dict, List
 import concurrent.futures
 import os
+import time
+import threading
+import colorama
+from colorama import Fore, Back, Style
+
+colorama.init()
+
+def loading_animation(stop_event: threading.Event):
+    """
+    Displays a more 3D-like and visually engaging loading animation.
+    """
+    animation_chars_3d = [
+        "       .o       ",
+        "      .oO.      ",
+        "     .oOoO.     ",
+        "    .oOo.oOo.    ",
+        "   .oO.   .oO.   ",
+        "  .oO.     .oO.  ",
+        " .oO.       .oO. ",
+        ".oO.         .oO.",
+        ".o.           .o.",
+        " o             o ",
+        "               "
+    ] # 3D sphere/orb-like expansion and contraction
+    colors_3d = [
+        Fore.CYAN,
+        Fore.LIGHTBLUE_EX, # Replaced LIGHT_CYAN_EX with LIGHTBLUE_EX (common issue, intended color similar)
+        Fore.BLUE,
+        Fore.LIGHTBLUE_EX,
+        Fore.CYAN,
+        Fore.LIGHTBLUE_EX,
+        Fore.BLUE,
+        Fore.LIGHTBLUE_EX,
+        Fore.CYAN,
+        Fore.LIGHTBLUE_EX,
+        Fore.RESET # Reset color for spacing
+    ] # Shades of blue and cyan, plus reset
+    bg_color = Back.BLACK
+    idx = 0
+    color_idx = 0
+    animation_width = 35 # Wider to accommodate 3D shape
+
+    base_text = f"{Fore.WHITE}{bg_color}  🔮 Neural Network Audio Analysis... {Style.RESET_ALL}{bg_color}{Fore.WHITE}  " # Even more immersive text
+
+
+    while not stop_event.is_set():
+        char_block = animation_chars_3d[idx % len(animation_chars_3d)]
+        color = colors_3d[color_idx % len(colors_3d)]
+        colored_animation = bg_color + color + char_block + Style.RESET_ALL
+        padding_right = " " * (animation_width - len(char_block) - len(base_text.split(Style.RESET_ALL)[0])) # Adjust padding more dynamically
+
+        animation_line = f"\r{base_text}{colored_animation}{padding_right}{Style.RESET_ALL}"
+        print(animation_line, end="")
+
+        idx += 1
+        color_idx += 1 # Step through colors gently
+        time.sleep(0.07) # Faster pace for pulsing 3D effect
+
+    done_line = f"\r{base_text}{bg_color}{Fore.GREEN}  ✨ Audio Analysis Complete! █████  {Style.RESET_ALL}    " # Enhanced "Complete!"
+    print(done_line, end="\r")
+    print()
 
 
 def get_topN(data: Dict[str, float], topN: int = 5, min_weight: float = 0.0) -> Dict[str, float]:
@@ -11,16 +72,6 @@ def get_topN(data: Dict[str, float], topN: int = 5, min_weight: float = 0.0) -> 
     that have a value greater than or equal to min_weight.
 
     Performance optimized version.
-
-    Args:
-        data: The input dictionary to sort.
-        topN: The maximum number of top items to return.
-        min_weight: The minimum weight value for an item to be included.
-
-    Returns:
-        A dictionary containing the top N items from the input dictionary
-        that have a value greater than or equal to min_weight,
-        sorted by value in descending order.
     """
     sortd = {}
     for key, value in sorted(data.items(), key=lambda x: x[1], reverse=True):
@@ -39,12 +90,6 @@ def process_topN_dict(*data: Dict[str, float]) -> Dict[str, float]:
     Combine multiple dictionaries, retaining the highest value for common keys.
 
     Performance optimized version using dictionary updates.
-
-    Args:
-        *data: Variable number of dictionaries to combine.
-
-    Returns:
-        A dictionary with combined data, keeping the maximum value for each key.
     """
     processed_data: Dict[str, float] = {}
     for ddict in data:
@@ -66,16 +111,6 @@ def get_init_extractor(music_path: str = '', ai_model_count: int = 1, ai_genres_
     Initializes and uses multiple AI models to extract and process music tags.
 
     Performance optimized version using list comprehension and efficient function calls.
-
-    Args:
-        music_path: Path to the music file.
-        ai_model_count: Number of AI models to use (1-5).
-        ai_genres_count: Number of genres to get from each AI model.
-        max_genres_return_count: Maximum number of genres to return in total.
-        min_weight: Minimum weight threshold for genre tags.
-
-    Returns:
-        A dictionary of top music genre tags with weights, filtered and combined from AI models.
     """
     model_names: List[str] = {
         1: ['MSD_musicnn_big'],
@@ -86,10 +121,18 @@ def get_init_extractor(music_path: str = '', ai_model_count: int = 1, ai_genres_
     }.get(ai_model_count, ['MSD_musicnn_big'])
 
     tags_list: List[Dict[str, float]] = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=ai_model_count) as executor: # Use ThreadPoolExecutor for parallel tasks
-        futures = [executor.submit(_process_model, music_path, model_name, ai_genres_count, min_weight) for model_name in model_names]
-        for future in concurrent.futures.as_completed(futures):
-            tags_list.append(future.result()) # Collect results as they become available
+    stop_loading_event = threading.Event()
+    loading_thread = threading.Thread(target=loading_animation, args=(stop_loading_event,))
+    loading_thread.start()
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=ai_model_count) as executor: # Use ThreadPoolExecutor for parallel tasks
+            futures = [executor.submit(_process_model, music_path, model_name, ai_genres_count, min_weight) for model_name in model_names]
+            for future in concurrent.futures.as_completed(futures):
+                tags_list.append(future.result()) # Collect results as they become available
+    finally:
+        stop_loading_event.set() # Signal loading animation to stop
+        loading_thread.join() # Wait for loading animation thread to finish
 
     combined_tags: Dict[str, float] = process_topN_dict(*tags_list)  # Use * to unpack list as arguments
     return get_topN(combined_tags, max_genres_return_count, min_weight)

@@ -43,7 +43,7 @@ def show_taggram(taggram, tags):
 
 def show_tags_likelihood_mean(taggram, tags):
     plt.rcParams["figure.figsize"] = (10,8) # set size of the figures
-    tags_likelihood_mean = np.mean(taggram, axis=0) # averaging the Taggram through time 
+    tags_likelihood_mean = np.mean(taggram, axis=0) # averaging the Taggram through time
     fig, ax = plt.subplots()
     fontsize = 8 # set figures font size
 
@@ -76,7 +76,7 @@ def get_sorted_tag_weights(taggram, tags):
     return sorted_tags
 
 if __name__ == '__main__':
-    music_path = r"D:\GITHB\FNAF2\test_fldr\yt not found\Февраль_Prod_By_ТРИНОЛЬДВА_feat_17_SEVENTEEN_drowsyy.m4a"
+    music_path = r"music_root_folder_path"
     taggram, tags = init_extractor(music_path)
     show_taggram(taggram, tags)
     show_tags_likelihood_mean(taggram, tags)
