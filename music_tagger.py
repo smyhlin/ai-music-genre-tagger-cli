@@ -11,7 +11,25 @@ from mutagen.mp4 import MP4
 from musicnn_tagger import get_init_extractor
 from lastfm_tagger import get_tags_and_weights
 
+import colorama
+from colorama import Fore, Back, Style
+
+colorama.init()
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Color constants
+C_AI = Fore.CYAN
+C_LASTFM = Fore.MAGENTA
+C_PROMPT = Fore.YELLOW
+C_GENRE_SUGGESTION = Fore.GREEN  # New color for genre suggestions
+C_RESET = Style.RESET_ALL
+C_BOLD = Style.BRIGHT
+
+def colored_print(color, text):
+    """Prints text in the specified color."""
+    print(color + text + C_RESET)
 
 class MusicTagger:
     """
@@ -30,7 +48,7 @@ class MusicTagger:
             elif isinstance(genres, list):
                 genre_list = genres
             else:
-                logging.error(f"Invalid genre format: {genres}. Expected string or list.")
+                logger.error(f"Invalid genre format: {genres}. Expected string or list.")
                 return False
 
             if file_path.lower().endswith('.mp3'):
@@ -45,27 +63,27 @@ class MusicTagger:
                 audio['\xa9gen'] = genre_list
                 audio.save()
             else:
-                logging.error(f"Unsupported file format for tagging: {file_path}")
+                logger.error(f"Unsupported file format for tagging: {file_path}")
                 return False
 
-            logging.info(f"Genre tag(s) set to '{genres}' for file: {file_path}")
+            logger.info(f"Genre tag(s) set to '{genres}' for file: {file_path}")
             return True
         except Exception as e:
-            logging.error(f"Error processing genre tag for file {file_path}: {e}")
+            logger.error(f"Error processing genre tag for file {file_path}: {e}")
             return False
 
     def process_music_file(self, file_path: str) -> bool:
         """Processes a single music file with AI and Last.fm genre suggestions."""
-        ai_genres = get_init_extractor(music_path=file_path, ai_model_count=3, max_genres_return_count=5, min_weight=0.2)
-        suggested_genres_ai = list(ai_genres.keys())
+        ai_genres_dict = get_init_extractor(music_path=file_path, ai_model_count=3, max_genres_return_count=5, min_weight=0.2)
+        suggested_genres_ai = list(ai_genres_dict.keys())
 
         filename = os.path.basename(file_path)
         artist_name, track_name = self._extract_metadata_from_file(file_path)
         if not artist_name or not track_name:
-            logging.warning("Could not extract artist and track from metadata, falling back to filename parsing.")
+            logger.warning("Could not extract artist and track from metadata, falling back to filename parsing.")
             artist_name, track_name = self._extract_artist_track_from_filename(filename)
 
-        logging.info(f"Extracted Artist Name: '{artist_name}', Track Name: '{track_name}' for Last.fm") # Debug log
+        logger.info(f"Extracted Artist Name: '{artist_name}', Track Name: '{track_name}' for Last.fm")
 
         lastfm_tags_weights = get_tags_and_weights(artist_name, track_name, topN=5, min_weight=60)
         suggested_genres_lastfm = [tag_name for tag_name, _ in lastfm_tags_weights]
@@ -73,19 +91,28 @@ class MusicTagger:
         suggested_genres_all = suggested_genres_ai + suggested_genres_lastfm
         suggested_genres_all_unique = sorted(list(set(suggested_genres_all)), key=suggested_genres_all.index)
 
-        print(f"AI Suggested genres: {suggested_genres_ai}")
-        print(f"Last.fm Suggested genres: {suggested_genres_lastfm}")
+        colored_print(C_AI, f"{C_BOLD}AI Suggested genres:{C_RESET}")
+        if suggested_genres_ai or suggested_genres_lastfm:
+            max_len = max(len(suggested_genres_ai), len(suggested_genres_lastfm))
+            ai_header = f"{C_AI}AI Genres{C_RESET}"
+            lastfm_header = f"{C_LASTFM}Last.fm Genres{C_RESET}"
+            print(f"| {ai_header:<20} | {lastfm_header:<20} |") # Adjust width as needed
+            print(f"|{'-'*22}|{'-'*22}|")
+
+            for i in range(max_len):
+                ai_genre = suggested_genres_ai[i] if i < len(suggested_genres_ai) else ""
+                lastfm_genre = suggested_genres_lastfm[i] if i < len(suggested_genres_lastfm) else ""
+                print(f"| {C_AI}{ai_genre:<20}{C_RESET} | {C_LASTFM}{lastfm_genre:<20}{C_RESET} |")
+        else:
+            colored_print(C_AI, "No genres suggested from AI or Last.fm.")
 
         while True:
-            prompt_text = f"Enter genre(s) for '{file_path}'"
-            if suggested_genres_all_unique:
-                prompt_text += f" (or choose from suggestions: {', '.join(suggested_genres_all_unique)}, or type comma-separated genres, or 'skip' to skip file): "
-            else:
-                prompt_text += " (or type comma-separated genres, or 'skip' to skip file): "
-
+            prompt_genres_list = suggested_genres_all_unique if suggested_genres_all_unique else ['no suggestions']
+            prompt_genres_colored = f"{C_GENRE_SUGGESTION}{', '.join(prompt_genres_list)}{C_RESET}"
+            prompt_text = f"{C_PROMPT}Enter genre(s) for {C_BOLD}'{filename}'{C_RESET}{C_PROMPT} (suggestions: {prompt_genres_colored}, or type comma-separated genres, or '{C_BOLD}skip{C_RESET}{C_PROMPT}' to skip file): {C_RESET}"
             genre_input: str = input(prompt_text).strip()
             if genre_input.lower() == 'skip':
-                logging.info(f"Skipping file: {file_path}")
+                logger.info(f"Skipping file: {file_path}")
                 return False
             if genre_input:
                 if "," in genre_input:
@@ -98,7 +125,7 @@ class MusicTagger:
             else:
                 print("Genre cannot be empty. Please enter a genre or type 'skip'.")
 
-        logging.info(f"Processing file: {file_path}, setting genre(s) to: {genres}")
+        logger.info(f"Processing file: {file_path}, setting genre(s) to: {genres}")
         return self.set_genre_tag(file_path, genres)
 
     def _extract_artist_track_from_filename(self, filename: str) -> Tuple[str, str]:
@@ -124,29 +151,29 @@ class MusicTagger:
         try:
             if file_path.lower().endswith('.mp3'):
                 audio = EasyID3(file_path)
-                logging.debug(f"EasyID3 tags: {audio.keys()}") # Log all EasyID3 tags found
-                artist_list = audio.get('artist', []) or audio.get('ARTIST', []) or audio.get('TPE1', []) or audio.get('TPE2', []) or audio.get('TOPE', []) # Added more artist tags
-                title_list = audio.get('title', []) or audio.get('TITLE', []) or audio.get('TIT2', []) # Added TIT2 (ID3v2 Title)
+                logger.debug(f"EasyID3 tags: {audio.keys()}")
+                artist_list = audio.get('artist', []) or audio.get('ARTIST', []) or audio.get('TPE1', []) or audio.get('TPE2', []) or audio.get('TOPE', [])
+                title_list = audio.get('title', []) or audio.get('TITLE', []) or audio.get('TIT2', [])
             elif file_path.lower().endswith('.m4a'):
                 audio = MP4(file_path)
-                logging.debug(f"MP4 tags: {audio.keys()}") # Log all MP4 tags found
-                artist_list = audio.get('\xa9ART', []) or audio.get('aART', []) or audio.get('ART', []) or audio.get('\xa9albArtist', []) or audio.get('©ART', []) # Added more m4a artist tags
-                title_list = audio.get('\xa9nam', []) or audio.get('\xa9Title', []) or audio.get('TITLE', []) or audio.get('\xa9title', []) # Added more m4a title tags
+                logger.debug(f"MP4 tags: {audio.keys()}")
+                artist_list = audio.get('\xa9ART', []) or audio.get('aART', []) or audio.get('ART', []) or audio.get('\xa9albArtist', []) or audio.get('©ART', [])
+                title_list = audio.get('\xa9nam', []) or audio.get('\xa9Title', []) or audio.get('TITLE', []) or audio.get('\xa9title', [])
             else:
                 return "", ""
 
-            artist_name_list = [str(artist).strip() for artist in artist_list if artist] # Ensure artist names are strings and not None
-            track_name_list = [str(title).strip() for title in title_list if title] # Ensure track names are strings and not None
+            artist_name_list = [str(artist).strip() for artist in artist_list if artist]
+            track_name_list = [str(title).strip() for title in title_list if title]
 
             artist_name = ' '.join(artist_name_list) if artist_name_list else ""
             track_name = ' '.join(track_name_list) if track_name_list else ""
 
-            logging.debug(f"Metadata Artist Tags: {artist_list}, Extracted Artist Name: '{artist_name}'") # Debug log metadata extraction
-            logging.debug(f"Metadata Title Tags: {title_list}, Extracted Track Name: '{track_name}'") # Debug log metadata extraction
+            logger.debug(f"Metadata Artist Tags: {artist_list}, Extracted Artist Name: '{artist_name}'")
+            logger.debug(f"Metadata Title Tags: {title_list}, Extracted Track Name: '{track_name}'")
 
 
         except Exception as e:
-            logging.error(f"Error extracting metadata from {file_path}: {e}")
+            logger.error(f"Error extracting metadata from {file_path}: {e}")
             return "", ""
 
         return artist_name.strip(), track_name.strip()
@@ -166,7 +193,12 @@ class MusicTagger:
     def process_directory(self, root_dir: str) -> None:
         """Recursively processes music files in a directory and sets their genre and lyrics tags."""
         music_files = self.find_music_files(root_dir)
-        logging.info(f"Found {len(music_files)} music files in {root_dir}")
+        logger.info(f"Found {len(music_files)} music files in {root_dir}")
 
         for file_path in music_files:
             self.process_music_file(file_path)
+
+if __name__ == "__main__":
+    music_tagger = MusicTagger()
+    music_dir = r"music_root_folder_path" # Replace with your music directory
+    music_tagger.process_directory(music_dir)
