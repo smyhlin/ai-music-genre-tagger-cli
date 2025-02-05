@@ -1,4 +1,4 @@
-#!filepath: api_client.py
+#!filepath: lastfm_tagger/api_client.py
 import requests
 import logging
 from typing import Dict, Any

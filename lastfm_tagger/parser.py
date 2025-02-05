@@ -1,4 +1,4 @@
-#!filepath: parser.py
+#!filepath: lastfm_tagger/parser.py
 from typing import List, Dict, Any
 
 import logging

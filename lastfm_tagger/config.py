@@ -1,4 +1,4 @@
-#!filepath: config.py
+#!filepath: lastfm_tagger/config.py
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 import os

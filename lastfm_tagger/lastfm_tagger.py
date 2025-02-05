@@ -1,4 +1,4 @@
-#!filepath: lastfm_tagger.py
+#!filepath: lastfm_tagger/lastfm_tagger.py
 import logging
 import os
 from typing import List, Tuple, Optional, Dict
