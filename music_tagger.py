@@ -138,7 +138,7 @@ class MusicTagger:
             logger.error(f"Error processing genre tag for file {file_path}: {e}")
             return False
 
-    def process_music_file(self, file_path: str) -> bool:
+    def process_music_file(self, file_path: str, auto_apply_tags: bool) -> bool:
         """
         Processes a single music file with AI and Last.fm genre suggestions, then sets the genre tag.
 
@@ -184,18 +184,30 @@ class MusicTagger:
             prompt_genres_list = suggested_genres_all_unique if suggested_genres_all_unique else ['no suggestions']
             prompt_genres_colored = f"{C_GENRE_SUGGESTION}{', '.join(prompt_genres_list)}{C_RESET}"
             prompt_text = f"{C_PROMPT}Enter genre(s) for {C_BOLD}'{filename}'{C_RESET}{C_PROMPT} (suggestions: {prompt_genres_colored}, or type comma-separated genres, or '{C_BOLD}skip{C_RESET}{C_PROMPT}' to skip file): {C_RESET}"
-            genre_input: str = input(prompt_text).strip()
-            if genre_input.lower() == 'skip':
-                logger.info(f"Skipping file: {file_path}")
-                return False
-            if genre_input:
-                if "," in genre_input:
-                    genres = [genre.strip() for genre in genre_input.split(",")]
+    
+            if not auto_apply_tags:
+                genre_input: str = input(prompt_text).strip()
+                if genre_input.lower() == 'skip':
+                    logger.info(f"Skipping file: {file_path}")
+                    return False
+                if genre_input:
+                    if "," in genre_input:
+                        genres = [genre.strip() for genre in genre_input.split(",")]
+                    else:
+                        genres = genre_input # Allow single genre without comma to be treated as string
+                    break
                 else:
-                    genres = genre_input # Allow single genre without comma to be treated as string
-                break
-            else:
-                print("Genre cannot be empty. Please enter a genre or type 'skip'.")
+                    print("Genre cannot be empty. Please enter a genre or type 'skip'.")
+            else: # Autoaply if option is ON
+                if prompt_genres_colored:
+                    if "," in prompt_genres_colored:
+                        genres = [genre.strip() for genre in prompt_genres_colored.split(",")]
+                    else:
+                        genres = prompt_genres_colored # Allow single genre without comma to be treated as string
+                    break
+                else:
+                    print("Genre cannot be empty. Please enter a genre or type 'skip'.")
+
 
         logger.info(f"Processing file: {file_path}, setting genre(s) to: {genres}")
         return self.set_genre_tag(file_path, genres)
@@ -294,7 +306,7 @@ class MusicTagger:
                     music_files.append(file_path)
         return music_files
 
-    def process_directory(self, root_dir: str) -> None:
+    def process_directory(self, root_dir: str, auto_apply_tags = False) -> None:
         """
         Recursively processes music files in a directory and sets their genre tags.
 
@@ -303,9 +315,12 @@ class MusicTagger:
         """
         music_files = self.find_music_files(root_dir)
         print(f"🔎 Found {C_PROMPT}{len(music_files)}{C_RESET}{C_BOLD} supported{C_RESET} music files in {C_PROMPT}{root_dir}{C_RESET}")
-
         for file_path in music_files:
-            self.process_music_file(file_path)
+            self.process_music_file(file_path, auto_apply_tags)
+
+    def get_music_files_count(self, root_dir: str):
+        music_files = self.find_music_files(root_dir)
+        print(f"🔎 Found {C_PROMPT}{len(music_files)}{C_RESET}{C_BOLD} supported{C_RESET} music files")
 
 if __name__ == "__main__":
     music_tagger = MusicTagger()
