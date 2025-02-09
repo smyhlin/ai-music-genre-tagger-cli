@@ -1,15 +1,10 @@
 #!filepath: lastfm_tagger/config.py
-# Removed pydantic_settings imports
-# from pydantic_settings import BaseSettings, SettingsConfigDict
-# from pydantic import Field
 import os
 import pathlib
-# Import dotenv
-from dotenv import load_dotenv, dotenv_values, set_key
+from dotenv import load_dotenv, set_key
 import logging
 
 
-# Replace BaseSettings with a regular class
 class LastFMSettings:
     """
     Settings class for managing application configurations for lastfm_tagger using dotenv.

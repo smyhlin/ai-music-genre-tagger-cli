@@ -1,12 +1,7 @@
 #!filepath: musicnn_tagger/config.py
 import pathlib
-
-# Removed pydantic_settings imports
-# from pydantic_settings import BaseSettings, SettingsConfigDict
-# from pydantic import Field
 import os
-# Import dotenv
-from dotenv import load_dotenv, dotenv_values, set_key
+from dotenv import load_dotenv, set_key
 import logging
 
 # Replace BaseSettings with a regular class
