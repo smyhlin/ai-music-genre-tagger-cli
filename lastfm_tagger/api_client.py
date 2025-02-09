@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 import urllib.parse
 
-from .config import Settings
+from lastfm_tagger.config import LastFMSettings
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ class LastFMClient:
     Client for interacting with the Last.fm API.
     """
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: LastFMSettings):
         """
         Initializes the LastFMClient with settings.
 
@@ -25,13 +25,7 @@ class LastFMClient:
     def _build_api_url(self, method: str, params: Dict[str, Any]) -> str:
         """
         Constructs the full API URL for a given method and parameters.
-
-        Args:
-            method: The Last.fm API method to call (e.g., 'track.getTopTags' or 'artist.getTopTags').
-            params: A dictionary of API parameters.
-
-        Returns:
-            The full API URL as a string.
+        Function name unified to _build_api_url for consistency.
         """
         base_url = self.settings.lastfm_api_base_url
         api_key = self.settings.lastfm_api_key
@@ -48,14 +42,7 @@ class LastFMClient:
     def get_track_top_tags(self, artist_name: str, track_name: str) -> Dict:
         """
         Retrieves top tags for a track from Last.fm API (using track.getTopTags) and returns the raw JSON response.
-
-        Args:
-            artist_name: The name of the artist.
-            track_name: The name of the track.
-
-        Returns:
-            A dictionary representing the JSON response from the Last.fm API.
-            Returns an empty dictionary if there is an error.
+        Function name unified to get_track_top_tags for consistency.
         """
         api_method = 'track.getTopTags'
         params = {
@@ -70,13 +57,7 @@ class LastFMClient:
     def get_artist_top_tags(self, artist_name: str) -> Dict:
         """
         Retrieves top tags for an artist from Last.fm API (using artist.getTopTags) and returns the raw JSON response.
-
-        Args:
-            artist_name: The name of the artist.
-
-        Returns:
-            A dictionary representing the JSON response from the Last.fm API.
-            Returns an empty dictionary if there is an error.
+        Function name unified to get_artist_top_tags for consistency.
         """
         api_method = 'artist.getTopTags'
         params = {
@@ -89,12 +70,7 @@ class LastFMClient:
     def _fetch_api_data(self, url: str) -> Dict:
         """
         Fetches data from the Last.fm API at the given URL and handles errors.
-
-        Args:
-            url: The full API URL to request.
-
-        Returns:
-            A dictionary representing the JSON response, or an empty dictionary on error.
+        Function name unified to _fetch_api_data for consistency.
         """
         try:
             response = requests.get(url)
