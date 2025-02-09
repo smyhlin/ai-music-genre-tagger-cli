@@ -37,6 +37,7 @@ class LastFMClient:
             **{k: urllib.parse.quote(v) if isinstance(v, str) else v for k, v in params.items()} # URL encode params
         }
         param_string = '&'.join([f"{key}={value}" for key, value in full_params.items()])
+        print(param_string)
         return f"{base_url}?{param_string}"
 
     def get_track_top_tags(self, artist_name: str, track_name: str) -> Dict:
@@ -57,7 +58,7 @@ class LastFMClient:
     def get_artist_top_tags(self, artist_name: str) -> Dict:
         """
         Retrieves top tags for an artist from Last.fm API (using artist.getTopTags) and returns the raw JSON response.
-        Function name unified to get_artist_top_tags for consistency.
+        Function name un ified to get_artist_top_tags for consistency.
         """
         api_method = 'artist.getTopTags'
         params = {
