@@ -21,8 +21,8 @@ from mutagen.wavpack import WavPack
 # Import necessary modules for handling TextFrame in WAV files
 from mutagen.id3 import ID3, TCON, TextFrame, Encoding
 
-from musicnn_tagger import get_init_extractor
-from lastfm_tagger import get_tags_and_weights
+from musicnn_tagger import get_musicnn_tags
+from lastfm_tagger import get_lastfm_tags
 
 import colorama
 from colorama import Fore, Back, Style
@@ -103,7 +103,7 @@ class MusicTagger:
 
             try:
                 audio = module(file_path)
-            except mutagen. MutagenError as e: # Catch general mutagen errors, e.g., for MP3 files without header
+            except mutagen.MutagenError as e: # Catch general mutagen errors, e.g., for MP3 files without header
                 if ext == '.mp3' and format_config.get('alt_module'): # Special handling for MP3 with missing header
                     audio = format_config['alt_module'](file_path, ID3=EasyID3)
                 else:
@@ -138,18 +138,32 @@ class MusicTagger:
             logger.error(f"Error processing genre tag for file {file_path}: {e}")
             return False
 
-    def process_music_file(self, file_path: str, auto_apply_tags: bool) -> bool:
+    def process_music_file(self, file_path: str, auto_apply_tags: bool, musicnn_settings: 'musicnn_tagger.config.MusicnnSettings', lastfm_settings: 'lastfm_tagger.config.Settings') -> bool:
         """
         Processes a single music file with AI and Last.fm genre suggestions, then sets the genre tag.
+        Accepts musicnn_settings and lastfm_settings as parameters.
 
         Args:
             file_path (str): Path to the music file.
+            auto_apply_tags (bool): If True, automatically apply suggested tags.
+            musicnn_settings (MusicnnSettings): Settings for Musicnn tagger.
+            lastfm_settings (LastFMSettings): Settings for LastFM tagger.
 
         Returns:
             bool: True if the file was processed (genre tag set or skipped), False if processing failed.
         """
-        ai_genres_dict = get_init_extractor(music_path=file_path, ai_model_count=3, max_genres_return_count=5, min_weight=0.2)
-        suggested_genres_ai = list(ai_genres_dict.keys())
+        suggested_genres_ai = []
+        suggested_genres_lastfm = []
+
+        if musicnn_settings.enabled: # Conditionally use musicnn tagger
+            ai_genres_dict = get_musicnn_tags(
+                music_path=file_path,
+                ai_model_count=musicnn_settings.model_count,
+                ai_genres_count=musicnn_settings.genres_count, # Use genres_count from settings
+                max_genres_return_count=5, # Fixed value, not from settings
+                min_weight=musicnn_settings.threshold_weight
+            )
+            suggested_genres_ai = list(ai_genres_dict.keys())
 
         filename = os.path.basename(file_path)
         artist_name, track_name = self._extract_metadata_from_file(file_path)
@@ -159,8 +173,14 @@ class MusicTagger:
 
         logger.info(f"Extracted Artist Name: '{artist_name}', Track Name: '{track_name}' for Last.fm")
 
-        lastfm_tags_weights = get_tags_and_weights(artist_name, track_name, topN=5, min_weight=60)
-        suggested_genres_lastfm = [tag_name for tag_name, _ in lastfm_tags_weights]
+        if lastfm_settings.enabled: # Conditionally use lastfm tagger
+            lastfm_tags_weights = get_lastfm_tags(
+                artist_name,
+                track_name,
+                top_n=5, # Fixed value, not from settings
+                min_weight=lastfm_settings.threshold_weight * 100 # LastFM weight is percentage based
+            )
+            suggested_genres_lastfm = [tag_name for tag_name, _ in lastfm_tags_weights]
 
         suggested_genres_all = suggested_genres_ai + suggested_genres_lastfm
         suggested_genres_all_unique = sorted(list(set(suggested_genres_all)), key=suggested_genres_all.index)
@@ -184,7 +204,7 @@ class MusicTagger:
             prompt_genres_list = suggested_genres_all_unique if suggested_genres_all_unique else ['no suggestions']
             prompt_genres_colored = f"{C_GENRE_SUGGESTION}{', '.join(prompt_genres_list)}{C_RESET}"
             prompt_text = f"{C_PROMPT}Enter genre(s) for {C_BOLD}'{filename}'{C_RESET}{C_PROMPT} (suggestions: {prompt_genres_colored}, or type comma-separated genres, or '{C_BOLD}skip{C_RESET}{C_PROMPT}' to skip file): {C_RESET}"
-    
+
             if not auto_apply_tags:
                 genre_input: str = input(prompt_text).strip()
                 if genre_input.lower() == 'skip':
@@ -199,15 +219,12 @@ class MusicTagger:
                 else:
                     print("Genre cannot be empty. Please enter a genre or type 'skip'.")
             else: # Autoaply if option is ON
-                if prompt_genres_colored:
-                    if "," in prompt_genres_colored:
-                        genres = [genre.strip() for genre in prompt_genres_colored.split(",")]
-                    else:
-                        genres = prompt_genres_colored # Allow single genre without comma to be treated as string
+                if suggested_genres_all_unique: # Apply AI/LastFM suggested genres if auto-apply is on and suggestions exist
+                    genres = suggested_genres_all_unique
                     break
-                else:
-                    print("Genre cannot be empty. Please enter a genre or type 'skip'.")
-
+                else: # If auto-apply is on but no suggestions, skip the file
+                    logger.info(f"Auto-apply tags is ON, but no genres suggested. Skipping file: {file_path}")
+                    return False # Indicate skipped, but not an error
 
         logger.info(f"Processing file: {file_path}, setting genre(s) to: {genres}")
         return self.set_genre_tag(file_path, genres)
@@ -306,17 +323,21 @@ class MusicTagger:
                     music_files.append(file_path)
         return music_files
 
-    def process_directory(self, root_dir: str, auto_apply_tags = False) -> None:
+    def process_directory(self, root_dir: str, auto_apply_tags: bool, musicnn_settings: 'musicnn_tagger.config.MusicnnSettings', lastfm_settings: 'lastfm_tagger.config.Settings') -> None:
         """
         Recursively processes music files in a directory and sets their genre tags.
+        Accepts musicnn_settings and lastfm_settings as parameters.
 
         Args:
             root_dir (str): The root directory containing music files.
+            auto_apply_tags (bool): If True, automatically apply suggested tags.
+            musicnn_settings (MusicnnSettings): Settings for Musicnn tagger.
+            lastfm_settings (LastFMSettings): Settings for LastFM tagger.
         """
         music_files = self.find_music_files(root_dir)
         print(f"🔎 Found {C_PROMPT}{len(music_files)}{C_RESET}{C_BOLD} supported{C_RESET} music files in {C_PROMPT}{root_dir}{C_RESET}")
         for file_path in music_files:
-            self.process_music_file(file_path, auto_apply_tags)
+            self.process_music_file(file_path, auto_apply_tags, musicnn_settings, lastfm_settings)
 
     def get_music_files_count(self, root_dir: str):
         music_files = self.find_music_files(root_dir)
@@ -325,4 +346,8 @@ class MusicTagger:
 if __name__ == "__main__":
     music_tagger = MusicTagger()
     music_dir = r"music_root_folder_path" # Replace with your music directory
-    music_tagger.process_directory(music_dir)
+    # Example settings - in real usage, these should come from your settings management
+    from main import MusicnnSettings, LastFMSettings # Import from main temporarily for standalone test - in real app, these will be passed from main
+    musicnn_settings = MusicnnSettings()
+    lastfm_settings = LastFMSettings()
+    music_tagger.process_directory(music_dir, False, musicnn_settings, lastfm_settings)
