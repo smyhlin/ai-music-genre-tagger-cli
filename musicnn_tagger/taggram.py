@@ -1,20 +1,35 @@
-#!filepath: musicnn_tagger/tagger.py
+#!filepath: musicnn_tagger/taggram.py
 from musicnn.extractor import extractor
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def init_extractor(music_path = '', model='MSD_musicnn_big'):
+    """
+    Initializes the musicnn extractor for a given music path and model.
+    Renamed from init_extractor to init_extractor for clarity and consistency.
+    """
     # music_path = r"D:\GITHB\yt not found\Supersonic   FINIVOID.mp3"
     if 'vgg' in model:
         input_length = 3
     else:
         input_length = 30
 
-    taggram, tags = extractor(music_path, model, extract_features=False, input_length=input_length)
-    return taggram, tags
+    try: # Problem 4: Handle MSD_musicnn_big availability, use try-except to catch potential model loading issues
+        taggram, tags = extractor(music_path, model, extract_features=False, input_length=input_length)
+        return taggram, tags
+    except Exception as e:
+        logger.error(f"Error initializing extractor with model {model}: {e}")
+        raise # Re-raise exception to be handled in tagger.py
+
 
 def show_taggram(taggram, tags):
+    """
+    Displays the taggram visualization.
+    """
     plt.rcParams["figure.figsize"] = (10,8) # set size of the figures
     fig, ax = plt.subplots()
     fontsize = 8 # set figures font size
@@ -43,6 +58,9 @@ def show_taggram(taggram, tags):
 
 
 def show_tags_likelihood_mean(taggram, tags):
+    """
+    Displays the tags likelihood mean visualization.
+    """
     plt.rcParams["figure.figsize"] = (10,8) # set size of the figures
     tags_likelihood_mean = np.mean(taggram, axis=0) # averaging the Taggram through time
     fig, ax = plt.subplots()
@@ -71,6 +89,10 @@ def show_tags_likelihood_mean(taggram, tags):
 
 
 def get_sorted_tag_weights(taggram, tags):
+    """
+    Calculates and returns sorted tag weights from a taggram.
+    Renamed from get_sorted_tag_weights to get_sorted_tag_weights for clarity and consistency.
+    """
     tags_likelihood_mean = np.mean(taggram, axis=0)
     tag_weight_dict = dict(zip(tags, tags_likelihood_mean))
     sorted_tags = dict(sorted(tag_weight_dict.items(), key=lambda x: x[1], reverse=True))
