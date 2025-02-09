@@ -167,6 +167,7 @@ class MusicTagger:
 
         filename = os.path.basename(file_path)
         artist_name, track_name = self._extract_metadata_from_file(file_path)
+
         if not artist_name or not track_name:
             logger.warning("Could not extract artist and track from metadata, falling back to filename parsing.")
             artist_name, track_name = self._extract_artist_track_from_filename(filename)
@@ -253,9 +254,29 @@ class MusicTagger:
         track_name = os.path.splitext(track_name)[0]
         return artist_name, track_name
 
+    def _deduplicate_name(self, name: str) -> str:
+        """
+        Removes duplicate words from a string to clean up artist or track names.
+        For example, "Mr.Kitty Mr.Kitty" becomes "Mr.Kitty".
+        """
+        if not name:
+            return ""
+        words = name.split()
+        unique_words = list(dict.fromkeys(words)) # Preserve order while removing duplicates
+        return " ".join(unique_words)
+
+    def _remove_file_extension_from_track(self, track_name: str) -> str:
+        """
+        Removes file extension from track name if it's incorrectly included.
+        For example, "After Dark.mp3" becomes "After Dark".
+        """
+        base_track_name = os.path.splitext(track_name)[0]
+        return base_track_name
+
     def _extract_metadata_from_file(self, file_path: str) -> Tuple[str, str]:
         """
         Extracts artist and track name from music file metadata using mutagen.
+        Includes deduplication of artist and track names and removes file extension from track name.
 
         Args:
             file_path (str): Path to the music file.
@@ -293,6 +314,12 @@ class MusicTagger:
 
             artist_name = ' '.join(artist_name_list) if artist_name_list else ""
             track_name = ' '.join(track_name_list) if track_name_list else ""
+
+            # Apply deduplication and extension removal
+            artist_name = self._deduplicate_name(artist_name)
+            track_name = self._deduplicate_name(track_name)
+            track_name = self._remove_file_extension_from_track(track_name)
+
 
             logger.debug(f"Metadata Artist Tags: {artist_list}, Extracted Artist Name: '{artist_name}'")
             logger.debug(f"Metadata Title Tags: {title_list}, Extracted Track Name: '{track_name}'")

@@ -11,10 +11,7 @@ import logging
 from enum import Enum, auto
 import keyboard
 from queue import Queue
-# Removed pydantic_settings imports
-# from pydantic_settings import BaseSettings, SettingsConfigDict
-# Import dotenv
-from dotenv import load_dotenv, dotenv_values, set_key
+from dotenv import load_dotenv, set_key
 
 # Import MusicnnSettings from musicnn_tagger/config.py
 from musicnn_tagger.config import MusicnnSettings
