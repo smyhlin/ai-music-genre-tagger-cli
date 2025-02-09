@@ -3,7 +3,7 @@ import logging
 import os
 from typing import List, Tuple, Optional, Dict
 
-from .config import Settings
+from .config import LastFMSettings
 from .api_client import LastFMClient
 from .parser import parse_track_tags, parse_artist_tags
 from .models import TagModel
@@ -11,16 +11,18 @@ from .models import TagModel
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def get_tags_and_weights(artist_name: str, track_name: str, topN: int = 5, min_weight: float = 60) -> List[Tuple[str, int]]:
+def get_lastfm_tags(artist_name: str, track_name: str, top_n: int = 5, min_weight: float = 60) -> List[Tuple[str, int]]:
     """
     Retrieves top tags and their weights for a given music track from Last.fm.
     If track tags are not found, falls back to artist tags.
     Filters tags by min_weight and returns top N tags.
+    Function name unified to get_lastfm_tags for consistency.
+    Parameter topN renamed to top_n for consistency.
 
     Args:
         artist_name: The name of the artist.
         track_name: The name of the track.
-        topN: Maximum number of top tags to return.
+        top_n: Maximum number of top tags to return.
         min_weight: Minimum weight threshold for tags (as a fraction, e.g., 60 for 60%).
 
     Returns:
@@ -28,7 +30,7 @@ def get_tags_and_weights(artist_name: str, track_name: str, topN: int = 5, min_w
         filtered and sorted. Returns an empty list if no tags are found or if API key is missing.
     """
     try:
-        settings = Settings()
+        settings = LastFMSettings()
         last_fm_client = LastFMClient(settings)
     except Exception as e:
         logger.error(str(e)) # Log settings error
@@ -60,7 +62,7 @@ def get_tags_and_weights(artist_name: str, track_name: str, topN: int = 5, min_w
     else:
         filtered_tags = all_tags_weights
     sorted_tags = sorted(filtered_tags, key=lambda item: item[1], reverse=True)
-    top_n_tags = sorted_tags[:topN]
+    top_n_tags = sorted_tags[:top_n] # Parameter topN renamed to top_n for consistency.
     tags_and_weights = top_n_tags
 
     return tags_and_weights
@@ -69,7 +71,9 @@ def get_tags_and_weights(artist_name: str, track_name: str, topN: int = 5, min_w
 def main(artist_name, track_name):
     """
     Main function to run when the script is executed directly.
-    Demonstrates get_tags_and_weights function with topN and min_weight parameters.
+    Demonstrates get_lastfm_tags function with top_n and min_weight parameters.
+    Function name unified to main for consistency.
+    Parameter topN renamed to top_n for consistency.
     """
     if not artist_name or not track_name:
         logger.error("Artist name and track name are required.")
@@ -77,7 +81,7 @@ def main(artist_name, track_name):
 
     top_n = 5 # Example top N value
     min_weight_threshold = 70 # Example min_weight value
-    tags_and_weights = get_tags_and_weights(artist_name, track_name, topN=top_n, min_weight=min_weight_threshold)
+    tags_and_weights = get_lastfm_tags(artist_name, track_name, top_n=top_n, min_weight=min_weight_threshold) # Parameter topN renamed to top_n for consistency.
 
     if tags_and_weights:
         print(f"\nTop {top_n} tags (>= {min_weight_threshold:.0f}% weight) for '{track_name}' by '{artist_name}':")
