@@ -1,187 +1,66 @@
-#!filepath: music_tagger.py
+# path main.py
 from __future__ import annotations
+import pathlib
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Optional, List, Any
+from typing import Callable, Optional, List, Any
 import os
 # Set TF_CPP_MIN_LOG_LEVEL environment variable to suppress TensorFlow messages
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # remove it for debugging
 import platform
 import logging
 from enum import Enum, auto
-import json
-from pathlib import Path
 import keyboard
-import time
-from dataclasses import asdict
-import sys
-import threading
 from queue import Queue
+# Removed pydantic_settings imports
+# from pydantic_settings import BaseSettings, SettingsConfigDict
+# Import dotenv
+from dotenv import load_dotenv, dotenv_values, set_key
 
+# Import MusicnnSettings from musicnn_tagger/config.py
+from musicnn_tagger.config import MusicnnSettings
+# Import LastFMSettings from lastfm_tagger.config
+from lastfm_tagger.config import LastFMSettings
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Set level on the logger itself
+
 # Create a formatter to define the log format
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
 # Create a file handler to write logs to a file
 file_handler = logging.FileHandler('app.log')
-file_handler.setLevel(logging.DEBUG) # Set log level to DEBUG for detailed logs
 file_handler.setFormatter(formatter)
-logger.addHandler(file_handler) # Add file handler to logger
+logger.addHandler(file_handler)  # Add file handler to logger
 
-@dataclass
-class MusiccnSettings:
+
+# Replace BaseSettings with a regular class
+class AppSettings:
     """
-    Configuration settings for the Musiccn AI tagger engine.
-
-    Attributes:
-        enabled (bool): Toggle for Musiccn AI tagger functionality
-        model_count (int): Number of AI models to use (1-5)
-        threshold_weight (float): Minimum confidence threshold for genre predictions
+    Global application settings container, loaded from and saved to .env file using dotenv.
     """
-    enabled: bool = True
-    model_count: int = 1
-    threshold_weight: float = 0.5
+    # Removed model_config
 
-    def validate(self) -> None:
-        """
-        Validate settings constraints.
+    auto_apply_tags: bool
+    default_music_dir: Optional[str]
 
-        Raises:
-            ValueError: If any settings are outside valid ranges
-        """
-        if not isinstance(self.model_count, int) or not 1 <= self.model_count <= 5:
-            raise ValueError("Model count must be an integer between 1 and 5")
-        if not 0 <= self.threshold_weight <= 1:
-            raise ValueError("Threshold weight must be between 0 and 1")
+    def __init__(self):
+        # Load environment variables from .env file in the parent directory
+        self.dotenv_path = pathlib.Path(__file__).parent / '.env'
+        load_dotenv(dotenv_path=self.dotenv_path, encoding='utf-8', verbose=False) # Load .env
 
-@dataclass
-class LastFMSettings:
-    """
-    Configuration settings for the LastFM data grabber.
+        # Initialize settings from environment variables or defaults
+        self.auto_apply_tags = os.getenv("AUTO_APPLY_TAGS", 'False').lower() == 'true' # Default to False if not set
+        self.default_music_dir = os.getenv("DEFAULT_MUSIC_DIR") # Can be None if not set
 
-    Attributes:
-        enabled (bool): Toggle for LastFM integration
-        threshold_weight (float): Minimum confidence threshold for genre data
-    """
-    enabled: bool = True
-    threshold_weight: float = 0.5
+    def save_settings(self):
+        """Save current settings to .env file."""
+        set_key(self.dotenv_path, "AUTO_APPLY_TAGS", str(self.auto_apply_tags).upper()) # Save auto_apply_tags
+        if self.default_music_dir: # Only save if not None
+            set_key(self.dotenv_path, "DEFAULT_MUSIC_DIR", self.default_music_dir)
+        else: # Remove from .env if None
+            set_key(self.dotenv_path, "DEFAULT_MUSIC_DIR", '') # Empty string will be read as None next time
+        logger.debug("AppSettings saved to .env")
 
-    def validate(self) -> None:
-        """
-        Validate settings constraints.
-
-        Raises:
-            ValueError: If threshold weight is outside valid range
-        """
-        if not 0 <= self.threshold_weight <= 1:
-            raise ValueError("Threshold weight must be between 0 and 1")
-
-@dataclass
-class ProcessingEngineSettings:
-    """
-    Aggregate settings for all processing engines.
-
-    Attributes:
-        musiccn (MusiccnSettings): Musiccn AI tagger configuration
-        lastfm (LastFMSettings): LastFM grabber configuration
-    """
-    musiccn: MusiccnSettings = field(default_factory=MusiccnSettings)
-    lastfm: LastFMSettings = field(default_factory=LastFMSettings)
-
-    def validate(self) -> None:
-        """Validate all processing engine settings."""
-        self.musiccn.validate()
-        self.lastfm.validate()
-
-@dataclass
-class Settings:
-    """
-    Global application settings container.
-
-    Attributes:
-        processing_engine (ProcessingEngineSettings): Processing engine configurations
-        auto_apply_tags (bool): Automatic tag application toggle
-        default_music_dir (Optional[str]): Default directory for music files
-    """
-    processing_engine: ProcessingEngineSettings = field(default_factory=ProcessingEngineSettings)
-    auto_apply_tags: bool = False
-    default_music_dir: Optional[str] = None
-
-    @classmethod
-    def load(cls, file_path: str = "settings.json") -> Settings:
-        """
-        Load settings from JSON file with proper type conversion.
-
-        Args:
-            file_path (str): Path to settings JSON file
-
-        Returns:
-            Settings: Instantiated settings object with loaded values
-        """
-        try:
-            if Path(file_path).exists():
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-
-                    # Reconstruct nested settings objects
-                    musiccn = MusiccnSettings(**data.get('processing_engine', {}).get('musiccn', {}))
-                    lastfm = LastFMSettings(**data.get('processing_engine', {}).get('lastfm', {}))
-
-                    processing_engine = ProcessingEngineSettings(
-                        musiccn=musiccn,
-                        lastfm=lastfm
-                    )
-
-                    return cls(
-                        processing_engine=processing_engine,
-                        auto_apply_tags=data.get('auto_apply_tags', False),
-                        default_music_dir=data.get('default_music_dir')
-                    )
-        except Exception as e:
-            logger.error(f"Error loading settings from {file_path}: {e}")
-            logger.info("Using default settings")
-
-        return cls()
-
-    def save(self, file_path: str = "settings.json") -> None:
-        """
-        Save settings to JSON file with validation.
-
-        Args:
-            file_path (str): Path to settings JSON file
-
-        Raises:
-            ValueError: If settings validation fails
-        """
-        try:
-            # Validate all settings before saving
-            self.processing_engine.validate()
-
-            # Prepare settings dictionary
-            settings_dict = {
-                'processing_engine': {
-                    'musiccn': {
-                        'enabled': self.processing_engine.musiccn.enabled,
-                        'model_count': self.processing_engine.musiccn.model_count,
-                        'threshold_weight': self.processing_engine.musiccn.threshold_weight
-                    },
-                    'lastfm': {
-                        'enabled': self.processing_engine.lastfm.enabled,
-                        'threshold_weight': self.processing_engine.lastfm.threshold_weight
-                    }
-                },
-                'auto_apply_tags': self.auto_apply_tags,
-                'default_music_dir': self.default_music_dir
-            }
-
-            # Save with proper formatting
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(settings_dict, f, indent=4, ensure_ascii=False)
-
-            logger.debug(f"Settings successfully saved to {file_path}")
-
-        except Exception as e:
-            logger.error(f"Error saving settings to {file_path}: {e}")
-            raise
 
 # Configure logging with ISO timestamp
 logging.basicConfig(
@@ -219,15 +98,19 @@ class InteractiveMenu:
     and dynamic value updates.
     """
 
-    def __init__(self, settings: Settings, music_tagger: 'MusicTagger'):
+    def __init__(self, settings: AppSettings, musicnn_settings: MusicnnSettings, lastfm_settings: LastFMSettings, music_tagger: 'MusicTagger'): # Use AppSettings, MusicnnSettings, and LastFMSettings
         """
         Initialize the interactive menu system.
 
         Args:
-            settings: Application settings instance
+            settings: Application settings instance (AppSettings)
+            musicnn_settings: Musicnn settings instance (MusicnnSettings)
+            lastfm_settings: LastFM settings instance (LastFMSettings)
             music_tagger: MusicTagger instance to process directories
         """
         self.settings = settings
+        self.musicnn_settings = musicnn_settings # Store Musicnn settings
+        self.lastfm_settings = lastfm_settings # Store LastFM settings
         self.root_directory = ''
         self.music_tagger = music_tagger # Store MusicTagger instance
         self.current_menu: List[MenuItem] = []
@@ -280,7 +163,7 @@ class InteractiveMenu:
         processing_engine_submenu = settings_submenu.children[0] # Get 'Processing Engine' submenu
         processing_engine_submenu.children = [
             MenuItem(
-                text="Musiccn AI Tagger",
+                text="Musicnn AI Tagger",
                 type=MenuItemType.SUBMENU,
                 children=[], # Children will be populated next
                 parent=settings_submenu # Set parent for back navigation
@@ -292,19 +175,19 @@ class InteractiveMenu:
                 parent=settings_submenu # Set parent for back navigation
             )
         ]
-        musiccn_submenu = processing_engine_submenu.children[0] # Get 'Musiccn AI Tagger' submenu
+        musiccn_submenu = processing_engine_submenu.children[0] # Get 'Musicnn AI Tagger' submenu
         musiccn_submenu.children = [
             MenuItem(
                 text="Enable/Disable",
                 type=MenuItemType.TOGGLE,
-                value=lambda: self.settings.processing_engine.musiccn.enabled,
-                callback=self._toggle_musiccn,
+                value=lambda: self.musicnn_settings.enabled, # Use musicnn_settings
+                callback=self._toggle_musiccn_enabled, # Updated callback name
                 parent=processing_engine_submenu # Set parent for back navigation
             ),
             MenuItem(
                 text="Models Count",
                 type=MenuItemType.VALUE,
-                value=lambda: self.settings.processing_engine.musiccn.model_count,
+                value=lambda: self.musicnn_settings.model_count, # Use musicnn_settings
                 min_value=1,
                 max_value=5,
                 step=1,
@@ -314,31 +197,41 @@ class InteractiveMenu:
             MenuItem(
                 text="Threshold Weight",
                 type=MenuItemType.VALUE,
-                value=lambda: self.settings.processing_engine.musiccn.threshold_weight,
+                value=lambda: self.musicnn_settings.threshold_weight, # Use musicnn_settings
                 min_value=0.0,
                 max_value=1.0,
                 step=0.1,
-                callback=self._set_musiccn_threshold,
+                callback=self._set_musiccn_threshold_weight, # Updated callback name
                 parent=processing_engine_submenu # Set parent for back navigation
-            )
+            ),
+            MenuItem( # New menu item for genres count
+                text="Genres Count",
+                type=MenuItemType.VALUE,
+                value=lambda: self.musicnn_settings.genres_count, # Use musicnn_settings
+                min_value=1,
+                max_value=10, # Example max genres count
+                step=1,
+                callback=self._set_musiccn_genres_count, # New callback
+                parent=processing_engine_submenu
+            ),
         ]
         lastfm_submenu = processing_engine_submenu.children[1] # Get 'LastFM Grabber' submenu
         lastfm_submenu.children = [
             MenuItem(
                 text="Enable/Disable",
                 type=MenuItemType.TOGGLE,
-                value=lambda: self.settings.processing_engine.lastfm.enabled,
-                callback=self._toggle_lastfm,
+                value=lambda: self.lastfm_settings.enabled, # Use lastfm_settings
+                callback=self._toggle_lastfm_enabled, # Updated callback name
                 parent=processing_engine_submenu # Set parent for back navigation
             ),
             MenuItem(
                 text="Threshold Weight",
                 type=MenuItemType.VALUE,
-                value=lambda: self.settings.processing_engine.lastfm.threshold_weight,
+                value=lambda: self.lastfm_settings.threshold_weight, # Use lastfm_settings
                 min_value=0.0,
                 max_value=1.0,
                 step=0.1,
-                callback=self._set_lastfm_threshold,
+                callback=self._set_lastfm_threshold_weight, # Updated callback name
                 parent=processing_engine_submenu # Set parent for back navigation
             )
         ]
@@ -425,6 +318,8 @@ class InteractiveMenu:
         elif item.type == MenuItemType.TOGGLE:
             if item.callback:
                 item.callback()
+                if item.text == "Auto-apply Tags": # Specific handling for "Auto-apply Tags"
+                    self.settings.save_settings() # Save AppSettings on toggle
 
         return True
 
@@ -454,7 +349,6 @@ class InteractiveMenu:
         if self.current_menu == self.root_menu:
             logger.info("_handle_back: Current menu is root menu, returning True")
             return True
-    
 
         # Check if the current menu has a parent
         if self.current_menu and self.current_menu[0].parent:
@@ -493,9 +387,18 @@ class InteractiveMenu:
                 new_value = min(new_value, item.max_value)
 
             if isinstance(new_value,float):
-                    new_value = round(new_value,1)
+                new_value = round(new_value,1)
             item.callback(new_value)
-        self._save_settings()
+            if item.text == "Models Count":
+                self.musicnn_settings.save_settings() # Save MusicnnSettings
+            elif item.text == "Threshold Weight" and item.parent.text == "Musicnn AI Tagger":
+                self.musicnn_settings.save_settings() # Save MusicnnSettings
+            elif item.text == "Genres Count":
+                self.musicnn_settings.save_settings() # Save MusicnnSettings
+            elif item.text == "Threshold Weight" and item.parent.text == "LastFM Grabber":
+                self.lastfm_settings.save_settings() # Save LastFMSettings
+
+
         return True
 
     def _handle_value_change_decrease(self) -> bool:
@@ -517,16 +420,23 @@ class InteractiveMenu:
             new_value = max(0.0, current_value - step) # Use max to ensure value >= 0, and 0.0 to handle float correctly.
 
             if item.min_value is not None: # Apply min_value constraint if present
-                 new_value = max(new_value, item.min_value)
+                new_value = max(new_value, item.min_value)
 
             if item.max_value is not None:
                 new_value = min(new_value, item.max_value)
 
 
             if isinstance(new_value,float):
-                    new_value = round(new_value,1)
+                new_value = round(new_value,1)
             item.callback(new_value)
-        self._save_settings()
+            if item.text == "Models Count":
+                self.musicnn_settings.save_settings() # Save MusicnnSettings
+            elif item.text == "Threshold Weight" and item.parent.text == "Musicnn AI Tagger":
+                self.musicnn_settings.save_settings() # Save MusicnnSettings
+            elif item.text == "Genres Count":
+                self.musicnn_settings.save_settings() # Save MusicnnSettings
+            elif item.text == "Threshold Weight" and item.parent.text == "LastFM Grabber":
+                self.lastfm_settings.save_settings() # Save LastFMSettings
         return True
 
     def _process_music_directory(self) -> bool:
@@ -541,6 +451,9 @@ class InteractiveMenu:
         """
         music_directory = self.settings.default_music_dir
         auto_apply_tags = self.settings.auto_apply_tags
+        musicnn_settings = self.musicnn_settings # Use stored musicnn_settings
+        lastfm_settings = self.lastfm_settings # Use stored lastfm_settings
+
         if not music_directory:
             logger.info("No default music directory set. Please select one first.")
             self._select_folder() # Force select folder if not set
@@ -552,15 +465,17 @@ class InteractiveMenu:
         if not os.path.isdir(music_directory):
             logger.error(f"Invalid music directory: {music_directory}")
             self.settings.default_music_dir = None # Reset invalid directory
-            self.settings.save()
+            self.settings.save_settings() # Save settings to remove invalid path
+
             logger.info("Default music directory setting has been reset.")
             return True # Back to menu
 
-        logger.info(f"Starting music genre tagging process for directory: {music_directory} with AI genre suggestions.")
+        safe_music_directory_for_logging = ''.join(c if ord(c) < 128 else '?' for c in music_directory)
+        logger.info(f"Starting music genre tagging process for directory: {safe_music_directory_for_logging} with AI genre suggestions.")
         print(f"\nStarting music genre tagging process for directory: {music_directory}...")
         print("You will be prompted to enter genre for each music file. AI suggestions will be provided.")
         try:
-            self.music_tagger.process_directory(music_directory, auto_apply_tags) # Call music tagger's process directory
+            self.music_tagger.process_directory(music_directory, auto_apply_tags, musicnn_settings, lastfm_settings) # Pass settings
             print(f"\nMusic genre tagging process completed for directory: {music_directory}")
             logger.info(f"Music genre tagging process completed for directory: {music_directory}")
         except Exception as e:
@@ -568,7 +483,8 @@ class InteractiveMenu:
             print(f"An error occurred during processing: {e}")
 
         input("\nPress Enter to continue...") # Pause to show completion message
-        return True # Back to menu
+        return True # Back to menu # Corrected to return to menu after processing
+
 
     def _select_folder(self) -> bool:
         """
@@ -576,7 +492,7 @@ class InteractiveMenu:
 
         Implements cross-platform folder selection using GUI dialog on Windows
         and terminal input on other platforms. Updates application settings
-        with selected directory.
+        with selected directory and saves to .env.
 
         Returns:
             bool: True if folder selection successful or cancelled, False on critical error
@@ -595,8 +511,8 @@ class InteractiveMenu:
                     root.attributes('-topmost', True)  # Ensure dialog is on top
 
                     initial_dir = (self.settings.default_music_dir
-                                or os.path.expanduser("~/Music")
-                                or os.path.expanduser("~"))
+                                   or os.path.expanduser("~/Music")
+                                   or os.path.expanduser("~"))
 
                     logger.debug(f"Initial directory for dialog: {initial_dir}")
                     directory = filedialog.askdirectory(
@@ -632,9 +548,10 @@ class InteractiveMenu:
                 logger.error(f"Invalid directory path: {directory}")
                 return True
 
-            # Update settings with new directory
+            # Update settings with new directory and save
             self.settings.default_music_dir = directory
-            self.settings.save()
+            self.settings.save_settings() # Save AppSettings to .env
+
 
             logger.info(f"Selected music directory: {directory}")
             logger.debug("Exiting _select_folder successfully") # Debug log at end
@@ -692,39 +609,38 @@ class InteractiveMenu:
             self._draw_menu()
             running = self._handle_input()
 
-    # Callback methods
-    def _toggle_musiccn(self) -> None:
-        self.settings.processing_engine.musiccn.enabled = not self.settings.processing_engine.musiccn.enabled
-        self._save_settings()
+    # Callback methods - Updated to use separate settings classes
+    def _toggle_musiccn_enabled(self) -> None:
+        self.musicnn_settings.enabled = not self.musicnn_settings.enabled # Use musicnn_settings
+        self.musicnn_settings.save_settings() # Save Musicnn settings
 
     def _set_musiccn_model_count(self, value: int) -> None:
-        self.settings.processing_engine.musiccn.model_count = int(value)
-        self._save_settings()
+        self.musicnn_settings.model_count = int(value) # Use musicnn_settings
+        self.musicnn_settings.save_settings() # Save Musicnn settings
 
-    def _set_musiccn_threshold(self, value: float) -> None:
-        self.settings.processing_engine.musiccn.threshold_weight = value
-        self._save_settings()
+    def _set_musiccn_threshold_weight(self, value: float) -> None:
+        self.musicnn_settings.threshold_weight = value # Use musicnn_settings
+        self.musicnn_settings.save_settings() # Save Musicnn settings
 
-    def _toggle_lastfm(self) -> None:
-        self.settings.processing_engine.lastfm.enabled = not self.settings.processing_engine.lastfm.enabled
-        self._save_settings()
+    def _set_musiccn_genres_count(self, value: int) -> None: # New callback for genres count
+        self.musicnn_settings.genres_count = int(value) # Use musicnn_settings
+        self.musicnn_settings.save_settings() # Save Musicnn settings
 
-    def _set_lastfm_threshold(self, value: float) -> None:
-        self.settings.processing_engine.lastfm.threshold_weight = value
-        self._save_settings()
+    def _toggle_lastfm_enabled(self) -> None:
+        self.lastfm_settings.enabled = not self.lastfm_settings.enabled # Use lastfm_settings
+        self.lastfm_settings.save_settings() # Save LastFM settings
+
+    def _set_lastfm_threshold_weight(self, value: float) -> None:
+        self.lastfm_settings.threshold_weight = value # Use lastfm_settings
+        self.lastfm_settings.save_settings() # Save LastFM settings
 
     def _toggle_auto_apply(self) -> None:
         self.settings.auto_apply_tags = not self.settings.auto_apply_tags
-        self._save_settings()
-
-    def _save_settings(self) -> bool:
-        self.settings.save()
-        logger.info("Settings saved successfully")
-        return True
+        self.settings.save_settings() # Save AppSettings
 
     def _exit_program(self) -> bool:
         """Exit the program with proper cleanup."""
-        self.settings.save()
+
         logger.info("Exiting program")
         return False
 
@@ -732,8 +648,10 @@ class InteractiveMenu:
 class MusicTaggerMenu:
     def __init__(self, music_tagger: 'MusicTagger'):
         self.music_tagger = music_tagger
-        self.settings = Settings.load()
-        self.menu = InteractiveMenu(self.settings, self.music_tagger) # Pass MusicTagger instance to menu
+        self.app_settings = AppSettings() # Load AppSettings from .env
+        self.musicnn_settings = MusicnnSettings() # Load MusicnnSettings from .env
+        self.lastfm_settings = LastFMSettings() # Load LastFMSettings from .env
+        self.menu = InteractiveMenu(self.app_settings, self.musicnn_settings, self.lastfm_settings, self.music_tagger) # Pass all settings instances to menu
 
     def display_menu(self) -> None:
         """Start the interactive menu system."""
