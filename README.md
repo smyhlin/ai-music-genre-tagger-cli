@@ -209,7 +209,5 @@ The tagger supports setting genre tags for a wide variety of audio file formats:
 * **PowerShell errors on Windows:** The `download_big_model.bat` script uses powershell. If you encounter errors, ensure that you have permissions to run scripts.
 
 ## License
-
-[Specify License, e.g., MIT License, or remove this section]
-
+`MIT License`
 ---
