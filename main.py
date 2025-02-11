@@ -18,17 +18,6 @@ from musicnn_tagger.config import MusicnnSettings
 # Import LastFMSettings from lastfm_tagger.config
 from lastfm_tagger.config import LastFMSettings
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Set level on the logger itself
-
-# Create a formatter to define the log format
-formatter = logging.Formatter('%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-
-# Create a file handler to write logs to a file
-file_handler = logging.FileHandler('app.log')
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)  # Add file handler to logger
-
 
 # Replace BaseSettings with a regular class
 class AppSettings:
