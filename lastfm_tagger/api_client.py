@@ -37,7 +37,6 @@ class LastFMClient:
             **{k: urllib.parse.quote(v) if isinstance(v, str) else v for k, v in params.items()} # URL encode params
         }
         param_string = '&'.join([f"{key}={value}" for key, value in full_params.items()])
-        print(param_string)
         return f"{base_url}?{param_string}"
 
     def get_track_top_tags(self, artist_name: str, track_name: str) -> Dict:
