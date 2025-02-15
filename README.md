@@ -27,7 +27,6 @@ This tagger works with tons of music file types: `.mp3`, `.m4a`, `.flac`, `.ogg`
     *   ▶️ Start the tagging!
     *   ⚙️ Change settings (auto-apply, AI model count, how sure the AI needs to be, turn AI and Last.fm on/off).
     *   💾 Save your settings.
-*   **⏳ Loading Animation:**  Shows a cool animation while the AI is thinking.
 *   **⚙️ Settings Management:** Uses a `.env` file (like a secret settings file) and some clever code to keep track of your API key, preferences, and more.
 
 ## Installation 🚀
@@ -56,14 +55,14 @@ This tagger works with tons of music file types: `.mp3`, `.m4a`, `.flac`, `.ogg`
     Or, install them one by one:
 
     ```bash
-    pip install pydantic requests mutagen musicnn python-dotenv colorama
+    pip install pydantic requests mutagen musicnn python-dotenv colorama keyboard
     ```
 
 3.  **Set up Your Last.fm API Key 🔑:**
 
     *   Get a free API key from Last.fm: [https://www.last.fm/api/account/create](https://www.last.fm/api/account/create)
     *   Create a file named `.env` in the main project folder.
-    *   Put your API key and other settings in the `.env` file like this:
+    *   Put your API key and other settings in the `.env` file like this and activate LASTFM_ENABLED=TRUE:
 
         ```
         LASTFM_API_KEY=YOUR_LASTFM_API_KEY
@@ -73,7 +72,7 @@ This tagger works with tons of music file types: `.mp3`, `.m4a`, `.flac`, `.ogg`
         MUSICNN_MODEL_COUNT=5
         MUSICNN_THRESHOLD_WEIGHT=0.2
         MUSICNN_GENRES_COUNT=5
-        LASTFM_ENABLED=TRUE
+        LASTFM_ENABLED=FALSE
         LASTFM_THRESHOLD_WEIGHT=0.6
         ```
         **Important:** Replace `YOUR_LASTFM_API_KEY` with your *actual* key!  The other settings have good defaults, but you can change them.  **Keep your `.env` file secret! Don't share it or put it in version control.**
@@ -153,36 +152,27 @@ This tagger works with tons of music file types: `.mp3`, `.m4a`, `.flac`, `.ogg`
 6.  **Settings are Saved! 💾:**  Any changes you make in the menu are saved to the `.env` file, so you don't have to set them up every time.
 
 ## Project Structure 📁
-content_copy
-download
-Use code with caution.
-Markdown
 ```
-.
-├── .env # Secret settings file (API key, etc.) - DON'T SHARE THIS!
-├── main.py # The main script you run
-├── music_tagger.py # The core tagging logic
-├── README.md # This file!
-├── requirements.txt # List of Python packages you need
-├── download_big_model.bat # Script to download the big AI model
-│
-├── lastfm_tagger/ # Code for getting tags from Last.fm
-│ ├── api_client.py # Talks to the Last.fm API
-│ ├── config.py # Last.fm settings
-│ ├── lastfm_tagger.py # Gets and processes Last.fm tags
-│ ├── models.py # (Currently unused)
-│ ├── parser.py # (Currently unused)
-│ ├── README.md # (Can be removed)
-│ └── init.py
-│
-└── musicnn_tagger/ # Code for AI genre prediction
-├── tagger.py # Uses the musicnn models
-├── taggram.py # Works with musicnn's output
-├── config.py # Musicnn settings
-├── extractor.py # Lower-level musicnn functions
-├── MSD_musicnn_big/ # (Optional) The big AI model (if you downloaded it)
-├── README.md # (Can be removed)
-└── init.py
+. ├── .env # Secret settings file (API key, etc.) - DON'T SHARE THIS! 
+  ├── main.py # The main script you run 
+  ├── music_tagger.py # The core tagging logic 
+  ├── README.md # This file! 
+  ├── requirements.txt # List of Python packages you need 
+  ├── download_big_model.bat # Script to download the big AI model 
+  ├── lastfm_tagger/ # Code for getting tags from Last.fm 
+  │   ├── api_client.py # Talks to the Last.fm API 
+  │   ├── config.py # Last.fm settings 
+  │   ├── lastfm_tagger.py # Gets and processes Last.fm tags 
+  │   ├── models.py # (Currently unused) 
+  │   ├── parser.py # (Currently unused) 
+  │   └── init.py 
+  ├── musicnn_tagger/ # Code for AI genre prediction 
+  │   ├── tagger.py # Uses the musicnn models 
+  │   ├── taggram.py # Works with musicnn's output 
+  │   ├── config.py # Musicnn settings 
+  │   ├── extractor.py # Lower-level musicnn functions 
+  │   ├── MSD_musicnn_big/ # (Optional) The big AI model (if you downloaded it) 
+  │   └── init.py
 ```
 ## Requirements 📝
 
