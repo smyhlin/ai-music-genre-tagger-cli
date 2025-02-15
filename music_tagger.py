@@ -26,7 +26,6 @@ from lastfm_tagger import get_lastfm_tags
 
 import colorama
 from colorama import Fore, Back, Style
-import concurrent.futures  # Import for concurrency
 import multiprocessing
 
 colorama.init()
@@ -53,15 +52,10 @@ def worker_process(input_queue: multiprocessing.Queue, output_queue: multiproces
     the input queue, processes them using get_musicnn_tags, and puts the
     results (file_path, genre_dict) into the output queue.
     """
-    print(f"Worker process started (PID: {os.getpid()})")  # Indicate process start
-
     while True:
         file_path = input_queue.get()
         if file_path is None:  # Termination signal
-            print(f"Worker process (PID: {os.getpid()}) exiting.") # Indicate process exit
             break  # Exit the loop
-
-        print(f"Worker (PID: {os.getpid()}) processing: {file_path}")  # Indicate file processing
 
         try:
             ai_genres_dict = get_musicnn_tags(
@@ -72,7 +66,6 @@ def worker_process(input_queue: multiprocessing.Queue, output_queue: multiproces
                 min_weight=musicnn_settings.threshold_weight
             )
             output_queue.put((file_path, ai_genres_dict))  # Send results back
-            print(f"Worker (PID: {os.getpid()}) finished processing: {file_path}") # Indicate processing complete
         except Exception as e:
             logger.error(f"Worker process error processing {file_path}: {e}")
             #  Send an error message. Put something in the output queue,
@@ -241,8 +234,7 @@ class MusicTagger:
 
         try:
             audio = module(file_path)
-            logger.debug(f"Tags for {file_path} ({ext}): {audio.keys()}")
-
+            # Removed debug log for tags
             artist_list = []
             for tag in artist_tag_keys:
                 artist_list.extend(audio.get(tag, []))
@@ -262,9 +254,7 @@ class MusicTagger:
             track_name = self._deduplicate_name(track_name)
             track_name = self._remove_file_extension_from_track(track_name)
 
-
-            logger.debug(f"Metadata Artist Tags: {artist_list}, Extracted Artist Name: '{artist_name}'")
-            logger.debug(f"Metadata Title Tags: {title_list}, Extracted Track Name: '{track_name}'")
+            # Removed debug logs for extracted artist and track names
 
         except Exception as e:
             logger.error(f"Error extracting metadata from {file_path}: {e}")
