@@ -12,7 +12,6 @@ This module integrates the `musicnn` library to provide AI-powered genre predict
     *   The number of AI models to use for prediction (1-5).
     *   A threshold weight for filtering suggested genres.
     *   The number of genres to be considered by the AI.
-*   **Loading Animation:** Displays a visually engaging loading animation during the audio analysis process, providing user feedback during potentially long operations.
 *   **Concurrent Processing:** Uses `concurrent.futures.ThreadPoolExecutor` to process multiple AI models in parallel, improving performance when using more than one model.
 *   **Taggram Visualization (Optional):** Provides functions to visualize the taggram (temporal evolution of tags) and tags likelihood mean, useful for debugging and understanding model outputs.
 *   **Settings Management:** Uses the `MusicnnSettings` class and `.env` file for easy configuration and persistence of settings.
@@ -30,7 +29,6 @@ This module integrates the `musicnn` library to provide AI-powered genre predict
 *   **`tagger.py`**:
     *   Contains the core logic for AI-based genre tagging.
     *   `get_musicnn_tags(music_path, ai_model_count, ai_genres_count, max_genres_return_count, min_weight)`: The main function to get genre suggestions for a music file. It handles model loading, parallel processing, tag combination, and filtering.
-    *   `loading_animation(stop_event)`: Function to display the loading animation during processing.
     *   Helper functions: `get_top_n_genres`, `combine_genre_dicts`, `_process_model`.
 *   **`taggram.py`**:
     *   Provides functions related to processing and visualizing the taggram output from `musicnn`.
