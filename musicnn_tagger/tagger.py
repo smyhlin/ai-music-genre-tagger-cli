@@ -1,6 +1,6 @@
 #!filepath: musicnn_tagger/tagger.py
 from .taggram import init_extractor, get_sorted_tag_weights
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import concurrent.futures
 import os
 import logging
@@ -47,13 +47,59 @@ def _process_model(music_path: str, model_name: str, genres_count: int, min_weig
     sorted_weights = get_sorted_tag_weights(taggram, model_tags)
     return get_top_n_genres(sorted_weights, genres_count, min_weight)
 
+def _remove_duplicate_gender_tags(genre_dict: Dict[str, float]) -> Dict[str, float]:
+    """
+    Removes duplicate gender-specific tags, keeping only the shortest tag.
+
+    Args:
+        genre_dict (Dict[str, float]): Dictionary of genres and their weights.
+
+    Returns:
+        Dict[str, float]: Modified dictionary with duplicate gender tags removed.
+    """
+    modified_genre_dict = genre_dict.copy()
+    female_keywords = ['woman', 'female', 'female vocal', 'female voice', 'female vocalists', 'female singer', 'female vocals']
+    male_keywords = ['man', 'male', 'male vocal', 'male voice', 'male vocalists', 'male singer', 'male vocals']
+
+    female_tags = []
+    male_tags = []
+
+    # Identify all gender-related tags
+    for tag in genre_dict:
+        tag_lower = tag.lower()
+        for keyword in female_keywords:
+            if keyword in tag_lower:
+                female_tags.append(tag)
+                break  # Avoid double-counting
+        for keyword in male_keywords:
+            if keyword in tag_lower:
+                male_tags.append(tag)
+                break
+
+    # Remove duplicates for female tags, keeping the shortest
+    if female_tags:
+        shortest_female_tag = min(female_tags, key=len) # Find the shortest tag
+        for tag in female_tags:
+            if tag != shortest_female_tag:
+                if tag in modified_genre_dict: # Check for exist
+                    del modified_genre_dict[tag]
+
+    # Remove duplicates for male tags, keeping the shortest
+    if male_tags:
+        shortest_male_tag = min(male_tags, key=len)
+        for tag in male_tags:
+            if tag != shortest_male_tag:
+                if tag in modified_genre_dict: # Check for exist
+                    del modified_genre_dict[tag]
+
+    return modified_genre_dict
 
 def get_musicnn_tags(music_path: str = '', ai_model_count: int = 1, ai_genres_count: int = 5, max_genres_return_count: int = 5, min_weight: float = 0.2) -> Dict[str, float]:
     """
     Initializes and uses multiple AI models to extract and process music tags.
-    No print statements or animation. Pure background processing.
+    Removes duplicate gender tags.
     """
-    logger.debug(f'Processing AI genres for: {music_path.split(os.sep)[-1]}') # Debug log - less intrusive
+    logger.debug(f'Processing AI genres for: {music_path.split(os.sep)[-1]}')
 
     model_names: List[str] = {
         1: ['MSD_musicnn_big', 'MTT_musicnn'],
@@ -71,12 +117,18 @@ def get_musicnn_tags(music_path: str = '', ai_model_count: int = 1, ai_genres_co
             tags_list.append(future.result())
 
     combined_tags: Dict[str, float] = combine_genre_dicts(*tags_list)
-    logger.debug(f'AI genre processing complete for: {music_path.split(os.sep)[-1]}') # Debug log - less intrusive
-    return get_top_n_genres(combined_tags, max_genres_return_count, min_weight)
+
+    # Remove duplicate gender tags
+    deduplicated_tags = _remove_duplicate_gender_tags(combined_tags)
+
+    logger.debug(f'AI genre processing complete for: {music_path.split(os.sep)[-1]}')
+    return get_top_n_genres(deduplicated_tags, max_genres_return_count, min_weight)
 
 
 if __name__ == "__main__":
-    song_path = r"D:\GITHB\FNAF2\test_fldr\Post punk\After Dark.mp3"
+    song_path = r"D:\GITHB\FNAF2\test_fldr\Post punk\After Dark.mp3"  # Replace with your music file path
+    # Or use a path with known duplicate gender tags for testing:
+    # song_path = r"path/to/your/music_file_with_duplicates.mp3"
     ai_model_count = 5
     ai_genres_count = 10
     max_genres_return_count = 10
