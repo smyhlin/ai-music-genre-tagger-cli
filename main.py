@@ -25,17 +25,6 @@ import queue  # Import the queue module
 # Import worker_process function
 from music_tagger import worker_process
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Set level on the logger itself
-
-# Create a formatter to define the log format
-formatter = logging.Formatter('%(asctime)s.%(msecs)03d - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-
-# Create a file handler to write logs to a file
-file_handler = logging.FileHandler('app.log')
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)  # Add file handler to logger
-
 
 # Replace BaseSettings with a regular class
 class AppSettings:
@@ -317,7 +306,7 @@ class InteractiveMenu:
     def _handle_selection(self) -> bool:
         """
         Handle menu item selection.
-
+asd
         Returns:
             bool: False if the menu should exit, True otherwise
         """
@@ -530,14 +519,7 @@ class InteractiveMenu:
                 self.music_tagger.process_music_file(current_file, self.settings.auto_apply_tags, self.musicnn_settings, self.lastfm_settings)
                 processed_count += 1
             else:
-                # Display a simple loading animation.  This is a basic console animation.
-                animation = "|/-\\"
-                for i in range(10):  # Short animation loop
-                    print(f"\rAI analysis in progress... {animation[i % len(animation)]}", end="")
-                    sys.stdout.flush()  # Ensure immediate output
-                    time.sleep(0.1)
-                print("\rWaiting for AI genre analysis...         ", end="")  # Clear the animation
-                sys.stdout.flush()
+                # Removed loading animation, wait directly for result.
                 time.sleep(0.2)  # Brief pause before checking again
 
         # Stop worker processes
@@ -684,7 +666,7 @@ class InteractiveMenu:
 
     def _set_musiccn_genres_count(self, value: int) -> None:  # New callback for genres count
         self.musicnn_settings.genres_count = int(value)  # Use musicnn_settings
-        self.musicnn_settings.save_settings()  # Save Musicnn settings
+        self.musicnn_settings.save_settings()  # Save Musicnn settingss
 
     def _toggle_lastfm_enabled(self) -> None:
         self.lastfm_settings.enabled = not self.lastfm_settings.enabled  # Use lastfm_settings
