@@ -6,7 +6,9 @@ This project is a Python-powered music tagger that automatically suggests and se
 2.  **🧑‍🤝‍🧑 Last.fm API:**  Asks the Last.fm community for their genre opinions! It checks for tags based on the track and artist, so you get the wisdom of the crowds. If it can't find track-specific tags, it'll use artist tags.
 
 This tagger works with tons of music file types: `.mp3`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.oga`, `.spx`, `.wav`, `.aiff`, `.aif`, `.asf`, `.wma`, `.wmv`, `.ape`, and `.wv`.  It uses the `mutagen` library to handle all the metadata magic. 🧙‍♂️
-
+___
+![TUI.png](assets/TUI.png)
+___
 ## Features 🌟
 
 *   **🤖🤝🧑‍🤝‍🧑 Automated Genre Suggestions:**  Combines AI smarts and Last.fm's community tags for the best genre suggestions.
