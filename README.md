@@ -13,6 +13,8 @@ ___
 
 *   **🤖🤝🧑‍🤝‍🧑 Automated Genre Suggestions:**  Combines AI smarts and Last.fm's community tags for the best genre suggestions.
 *   **🧠 Multiple AI Models:** Uses several `musicnn` models (like having multiple experts!) with a backup plan for maximum accuracy and reliability.
+*   **🎤 Intelligent Voice Genre Handling:**  Refines AI voice-related genre suggestions, consolidating duplicates like "man voice"/"male voice" and "female voice"/"woman voice" for cleaner, more accurate genre lists.
+*   **⚙️ Background AI Processing & Caching:** AI genre prediction now runs in the background and caches results, making the tagging process more robust and responsive, especially for large music libraries.
 *   **🎶 Last.fm Integration:** Gets the top tags from Last.fm based on your song's artist and title.
 *   **🏷️ Metadata Extraction:**  Pulls out the artist and track info from your music files' metadata (ID3, MP4, etc.).
 *   **📁 Filename Parsing:** If the metadata is missing, it can even try to figure out the artist and track from the filename!
@@ -29,7 +31,7 @@ ___
     *   ▶️ Start the tagging!
     *   ⚙️ Change settings (auto-apply, AI model count, how sure the AI needs to be, turn AI and Last.fm on/off).
     *   💾 Save your settings.
-*   **⚙️ Settings Management:** Uses a `.env` file (like a secret settings file) and some clever code to keep track of your API key, preferences, and more.
+*   **⚙️ Settings Management & `.env` Validation:** Uses a `.env` file (like a secret settings file) to keep track of your API key and preferences.  The program now validates `.env` settings at startup for smoother operation, providing user-friendly warnings and options to continue or exit if issues are found.
 
 ## Installation 🚀
 
@@ -77,7 +79,7 @@ ___
         LASTFM_ENABLED=FALSE
         LASTFM_THRESHOLD_WEIGHT=0.6
         ```
-        **Important:** Replace `YOUR_LASTFM_API_KEY` with your *actual* key!  The other settings have good defaults, but you can change them.  **Keep your `.env` file secret! Don't share it or put it in version control.**
+        **Important:** Replace `YOUR_LASTFM_API_KEY` with your *actual* key!  The other settings have good defaults, but you can change them.  **Keep your `.env` file secret! Don't share it or put it in version control.**  Ensure `LASTFM_ENABLED` is set to `TRUE` if you want to use Last.fm features. The program will validate these settings when it starts.
 
 4.  **(Optional, but HIGHLY Recommended) Get the Big AI Brain! 🧠💪:**
 
@@ -108,6 +110,7 @@ ___
     ```bash
     python main.py
     ```
+    The program will first validate your `.env` file settings before launching the main menu.
 
 3.  **The Interactive Menu 🪄:**
 
@@ -121,7 +124,7 @@ ___
 4.  **Menu Options 🎛️:**
 
     *   **Select Music Root Folder 📂:** Pick the folder where your music lives. On Windows, a file selection box will pop up. On other systems, you'll type in the path.
-    *   **Process Directory ▶️:**  Start tagging the music in the folder you selected!
+    *   **Process Directory ▶️:**  Start tagging the music in the folder you selected! AI processing happens in the background, so be patient especially with large libraries or when using multiple AI models.
     *   **Settings ⚙️:**
         *   **Processing Engine:**
             *   **Musicnn AI Tagger:**
@@ -155,34 +158,37 @@ ___
 
 ## Project Structure 📁
 ```
-. ├── .env # Secret settings file (API key, etc.) - DON'T SHARE THIS! 
-  ├── main.py # The main script you run 
-  ├── music_tagger.py # The core tagging logic 
-  ├── README.md # This file! 
-  ├── requirements.txt # List of Python packages you need 
-  ├── download_big_model.bat # Script to download the big AI model 
-  ├── lastfm_tagger/ # Code for getting tags from Last.fm 
-  │   ├── api_client.py # Talks to the Last.fm API 
-  │   ├── config.py # Last.fm settings 
-  │   ├── lastfm_tagger.py # Gets and processes Last.fm tags 
-  │   ├── models.py # (Currently unused) 
-  │   ├── parser.py # (Currently unused) 
-  │   └── init.py 
-  ├── musicnn_tagger/ # Code for AI genre prediction 
-  │   ├── tagger.py # Uses the musicnn models 
-  │   ├── taggram.py # Works with musicnn's output 
-  │   ├── config.py # Musicnn settings 
-  │   ├── extractor.py # Lower-level musicnn functions 
-  │   ├── MSD_musicnn_big/ # (Optional) The big AI model (if you downloaded it) 
-  │   └── init.py
+. 
+├── .env # Secret settings file (API key, etc.) - DON'T SHARE THIS!
+├── main.py # The main script you run
+├── music_tagger.py # The core tagging logic
+├── README.md # This file!
+├── requirements.txt # List of Python packages you need
+├── download_big_model.bat # Script to download the big AI model
+├── lastfm_tagger/ # Code for getting tags from Last.fm
+│   ├── api_client.py # Talks to the Last.fm API
+│   ├── config.py # Last.fm settings
+│   ├── lastfm_tagger.py # Gets and processes Last.fm tags
+│   ├── models.py # (Currently unused)
+│   ├── parser.py # (Currently unused)
+│   └── init.py
+├── musicnn_tagger/ # Code for AI genre prediction
+│   ├── tagger.py # Uses the musicnn models
+│   ├── taggram.py # Works with musicnn's output
+│   ├── config.py # Musicnn settings
+│   ├── extractor.py # Lower-level musicnn functions
+│   ├── MSD_musicnn_big/ # (Optional) The big AI model (if you downloaded it)
+│   └── init.py
 ```
 ## Requirements 📝
 
 *   Python 3.7.16
 *   The packages listed in `requirements.txt`
+*   Last.fm API Key (if using Last.fm features)
 
 ## Troubleshooting ❓
 
+*   **`.env` Validation Errors:** If the program shows warnings about your `.env` file when starting, double-check the `.env` file in the project directory. Ensure `LASTFM_API_KEY` is correctly entered (if Last.fm is enabled) and `LASTFM_ENABLED` is set to `TRUE` if you intend to use Last.fm features. You can choose to continue or exit if validation fails.
 *   **`MSD_musicnn_big` not found:** If you see an error about this model, either run `download_big_model.bat` to get it, or the program will use the `MTT_musicnn` model (which is still pretty good!).
 *   **Last.fm API errors:** Double-check your `LASTFM_API_KEY` in the `.env` file.  You might also have internet connection problems.
 *   **File format errors:** Make sure your music files are valid and that `mutagen` supports them.
