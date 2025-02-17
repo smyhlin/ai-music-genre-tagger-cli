@@ -16,7 +16,6 @@ class MusicnnSettings:
     including persistence for the enabled_models dictionary.
     """
     enabled: bool = True
-    model_count: int = 5
     threshold_weight: float = 0.2
     genres_count: int = 5
     enabled_models: Dict[str, bool] = field(default_factory=lambda: {
@@ -36,7 +35,6 @@ class MusicnnSettings:
         load_dotenv(dotenv_path=self.dotenv_path, encoding='utf-8', verbose=False) # Load .env
 
         self.enabled = os.getenv("MUSICNN_ENABLED", 'True').lower() == 'true'
-        self.model_count = int(os.getenv("MUSICNN_MODEL_COUNT", 3))
         self.threshold_weight = float(os.getenv("MUSICNN_THRESHOLD_WEIGHT", 0.2))
         self.genres_count = int(os.getenv("MUSICNN_GENRES_COUNT", 5))
 
@@ -60,7 +58,6 @@ class MusicnnSettings:
         Save current Musicnn settings to .env file, including enabled_models.
         """
         set_key(self.dotenv_path, "MUSICNN_ENABLED", str(self.enabled).upper())
-        set_key(self.dotenv_path, "MUSICNN_MODEL_COUNT", str(self.model_count))
         set_key(self.dotenv_path, "MUSICNN_THRESHOLD_WEIGHT", str(self.threshold_weight))
         set_key(self.dotenv_path, "MUSICNN_GENRES_COUNT", str(self.genres_count))
 
