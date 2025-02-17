@@ -1,52 +1,82 @@
-#!filepath: musicnn_tagger/config.py
-import pathlib
+# path musicnn_tagger/config.py
+from dataclasses import dataclass, field
 import os
 from dotenv import load_dotenv, set_key
+import pathlib
 import logging
+from typing import Dict
+import json  # Import json for serialization
 
-# Replace BaseSettings with a regular class
+logger = logging.getLogger(__name__)
+
+@dataclass
 class MusicnnSettings:
     """
-    Configuration settings for the Musicnn AI tagger engine, loaded from and saved to .env file using dotenv.
+    Settings for the Musicnn AI tagger, loaded from and saved to .env file,
+    including persistence for the enabled_models dictionary.
     """
+    enabled: bool = True
+    model_count: int = 5
+    threshold_weight: float = 0.2
+    genres_count: int = 5
+    enabled_models: Dict[str, bool] = field(default_factory=lambda: {
+        'MSD_musicnn_big': True,
+        'MTT_musicnn': True,
+        'MTT_vgg': True,
+        'MSD_musicnn': True,
+        'MSD_vgg': True
+    })
 
-    enabled: bool
-    model_count: int
-    threshold_weight: float
-    genres_count: int
-
-
-    def __init__(self):
-        # Load environment variables from .env file in the parent directory
+    def __post_init__(self):
+        """
+        Initialize MusicnnSettings by loading values from .env file,
+        including enabled_models.
+        """
         self.dotenv_path = pathlib.Path(__file__).parent.parent / '.env'
         load_dotenv(dotenv_path=self.dotenv_path, encoding='utf-8', verbose=False) # Load .env
 
-        # Initialize settings from environment variables or defaults
-        self.enabled = os.getenv("MUSICNN_ENABLED", 'True').lower() == 'true' # Default to True if not set
-        self.model_count = int(os.getenv("MUSICNN_MODEL_COUNT", '1')) # Default to 1, convert to int
-        self.threshold_weight = float(os.getenv("MUSICNN_THRESHOLD_WEIGHT", '0.5')) # Default to 0.5, convert to float
-        self.genres_count = int(os.getenv("MUSICNN_GENRES_COUNT", '5')) # Default to 5, convert to int
-        self.model_validate() # Validate after initialization
+        self.enabled = os.getenv("MUSICNN_ENABLED", 'True').lower() == 'true'
+        self.model_count = int(os.getenv("MUSICNN_MODEL_COUNT", 3))
+        self.threshold_weight = float(os.getenv("MUSICNN_THRESHOLD_WEIGHT", 0.2))
+        self.genres_count = int(os.getenv("MUSICNN_GENRES_COUNT", 5))
+
+        # Load enabled_models from .env as a JSON string and parse it
+        enabled_models_str = os.getenv("MUSICNN_ENABLED_MODELS")
+        if enabled_models_str:
+            try:
+                self.enabled_models = json.loads(enabled_models_str)
+                if not isinstance(self.enabled_models, dict): # Basic validation after loading
+                    logger.warning("Invalid format for MUSICNN_ENABLED_MODELS in .env, using default models.")
+                    self.enabled_models = self.default_enabled_models() # Fallback to default if loading fails
+            except json.JSONDecodeError:
+                logger.warning("Could not decode MUSICNN_ENABLED_MODELS from .env, using default models.")
+                self.enabled_models = self.default_enabled_models() # Fallback to default on decode error
+        else:
+            self.enabled_models = self.default_enabled_models() # Use default if not in .env
+
 
     def save_settings(self):
-        """Save current settings to .env file."""
+        """
+        Save current Musicnn settings to .env file, including enabled_models.
+        """
         set_key(self.dotenv_path, "MUSICNN_ENABLED", str(self.enabled).upper())
         set_key(self.dotenv_path, "MUSICNN_MODEL_COUNT", str(self.model_count))
         set_key(self.dotenv_path, "MUSICNN_THRESHOLD_WEIGHT", str(self.threshold_weight))
         set_key(self.dotenv_path, "MUSICNN_GENRES_COUNT", str(self.genres_count))
-        logging.debug("MusicnnSettings saved to .env")
 
+        # Serialize enabled_models dictionary to JSON string and save it
+        enabled_models_str = json.dumps(self.enabled_models)
+        set_key(self.dotenv_path, "MUSICNN_ENABLED_MODELS", enabled_models_str)
 
-    def model_validate(self) -> None: # Removed settings parameter as it's self now
-        """
-        Validate settings constraints.
+        logger.debug("MusicnnSettings saved to .env (including enabled_models).")
 
-        Raises:
-            ValueError: If any settings are outside valid ranges
-        """
-        if not isinstance(self.model_count, int) or not 1 <= self.model_count <= 5:
-            raise ValueError("Model count must be an integer between 1 and 5")
-        if not 0 <= self.threshold_weight <= 1:
-            raise ValueError("Threshold weight must be between 0 and 1")
-        if not isinstance(self.genres_count, int) or not 1 <= self.genres_count <= 10: # Example max genres count
-            raise ValueError("Musicnn genres count must be an integer between 1 and 10")
+    @staticmethod
+    def default_enabled_models() -> Dict[str, bool]:
+        """Returns the default enabled_models dictionary."""
+        return {
+            'MSD_musicnn_big': True,
+            'MTT_musicnn': True,
+            'MTT_vgg': True,
+            'MSD_musicnn': True,
+            'MSD_vgg': True
+        }

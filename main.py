@@ -4,6 +4,8 @@ import pathlib
 from dataclasses import dataclass, field
 from typing import Callable, Optional, List, Any
 import os
+import colorama
+from colorama import Fore, Back, Style
 
 from numpy.f2py.cfuncs import callbacks
 
@@ -28,6 +30,14 @@ import queue  # Import the queue module
 # Import worker_process function
 from music_tagger import worker_process
 
+colorama.init()
+# Color constants
+C_AI = Fore.CYAN
+C_LASTFM = Fore.MAGENTA
+C_PROMPT = Fore.YELLOW
+C_GENRE_SUGGESTION = Fore.GREEN
+C_RESET = Style.RESET_ALL
+C_BOLD = Style.BRIGHT
 
 # Replace BaseSettings with a regular class
 class AppSettings:
@@ -204,6 +214,12 @@ class InteractiveMenu:
                 callback=self._set_musiccn_model_count,
                 parent=processing_engine_submenu  # Set parent for back navigation
             ),
+            MenuItem( # New menu item for Models List
+                text="Models List",
+                type=MenuItemType.SUBMENU,
+                children=[],  # Children will be populated next
+                parent=processing_engine_submenu  # Set parent for back navigation
+            ),
             MenuItem(
                 text="Threshold Weight",
                 type=MenuItemType.VALUE,
@@ -225,13 +241,52 @@ class InteractiveMenu:
                 parent=processing_engine_submenu
             ),
         ]
+
+        musiccn_models_list_submenu = musiccn_submenu.children[2] # Get 'Models List' submenu
+        musiccn_models_list_submenu.children = [
+            MenuItem(
+                text=f"{C_BOLD}(Very Accurate, Slow){C_RESET} {C_AI}MSD_musicnn_big{C_RESET}",
+                type=MenuItemType.TOGGLE,
+                value=lambda: self.musicnn_settings.enabled_models.get('MSD_musicnn_big', False),
+                callback=lambda: self._toggle_musiccn_model_enabled('MSD_musicnn_big'),
+                parent=musiccn_submenu
+            ),
+            MenuItem(
+                text=f"{C_BOLD}(State-of-the-art Accuracy, Medium Speed){C_RESET} {C_AI}MTT_musicnn{C_RESET}",
+                type=MenuItemType.TOGGLE,
+                value=lambda: self.musicnn_settings.enabled_models.get('MTT_musicnn', False),
+                callback=lambda: self._toggle_musiccn_model_enabled('MTT_musicnn'),
+                parent=musiccn_submenu
+            ),
+            MenuItem(
+                text=f"{C_BOLD}(Good Accuracy, Medium Speed){C_RESET} {C_AI}MTT_vgg{C_RESET}",
+                type=MenuItemType.TOGGLE,
+                value=lambda: self.musicnn_settings.enabled_models.get('MTT_vgg', False),
+                callback=lambda: self._toggle_musiccn_model_enabled('MTT_vgg'),
+                parent=musiccn_submenu
+            ),
+            MenuItem(
+                text=f"{C_BOLD}(Lower Accuracy, Very Fast){C_RESET} {C_AI}MSD_musicnn{C_RESET}",
+                type=MenuItemType.TOGGLE,
+                value=lambda: self.musicnn_settings.enabled_models.get('MSD_musicnn', False),
+                callback=lambda: self._toggle_musiccn_model_enabled('MSD_musicnn'),
+                parent=musiccn_submenu
+            ),
+            MenuItem(
+                text=f"{C_BOLD}(Lower Accuracy, Very Fast){C_RESET} {C_AI}MSD_vgg{C_RESET}",
+                type=MenuItemType.TOGGLE,
+                value=lambda: self.musicnn_settings.enabled_models.get('MSD_vgg', False),
+                callback=lambda: self._toggle_musiccn_model_enabled('MSD_vgg'),
+                parent=musiccn_submenu
+            ),
+        ]
         lastfm_submenu = processing_engine_submenu.children[1]  # Get 'LastFM Grabber' submenu
         lastfm_submenu.children = [
             MenuItem(
                 text="Enable/Disable",
                 type=MenuItemType.TOGGLE,
                 value=lambda: self.lastfm_settings.enabled,  # Use lastfm_settings
-                callback=self._toggle_lastfm_enabled,  # Updated callback name
+                callback=self._toggle_lastfm_enabled,  # Updated callback names
                 parent=processing_engine_submenu  # Set parent for back navigation
             ),
             MenuItem(
@@ -370,7 +425,6 @@ asd
         if self.current_menu == self.root_menu:
             logger.info("_handle_back: Current menu is root menu, returning True")
             return True
-        logger.info(self.current_menu)
         # Check if the current menu has a parent
         if self.current_menu and self.current_menu[0].parent:
             parent_menu_item = self.current_menu[0].parent
@@ -677,6 +731,14 @@ asd
     def _set_musiccn_model_count(self, value: int) -> None:
         self.musicnn_settings.model_count = int(value)  # Use musicnn_settings
         self.musicnn_settings.save_settings()  # Save Musicnn settings
+
+    def _toggle_musiccn_model_enabled(self, model_name: str) -> None:
+        if model_name in self.musicnn_settings.enabled_models:
+            current_state = self.musicnn_settings.enabled_models[model_name]
+            self.musicnn_settings.enabled_models[model_name] = not current_state
+            self.musicnn_settings.save_settings() # Ensure settings are saved
+        else:
+            logger.warning(f"Model name '{model_name}' not found in musicnn settings.")
 
     def _set_musiccn_threshold_weight(self, value: float) -> None:
         self.musicnn_settings.threshold_weight = value  # Use musicnn_settings
