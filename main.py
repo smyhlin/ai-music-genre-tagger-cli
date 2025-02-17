@@ -204,16 +204,6 @@ class InteractiveMenu:
                 callback=self._toggle_musiccn_enabled,  # Updated callback name
                 parent=processing_engine_submenu  # Set parent for back navigation
             ),
-            MenuItem(
-                text="Models Count",
-                type=MenuItemType.VALUE,
-                value=lambda: self.musicnn_settings.model_count,  # Use musicnn_settings
-                min_value=1,
-                max_value=5,
-                step=1,
-                callback=self._set_musiccn_model_count,
-                parent=processing_engine_submenu  # Set parent for back navigation
-            ),
             MenuItem( # New menu item for Models List
                 text="Models List",
                 type=MenuItemType.SUBMENU,
@@ -242,7 +232,7 @@ class InteractiveMenu:
             ),
         ]
 
-        musiccn_models_list_submenu = musiccn_submenu.children[2] # Get 'Models List' submenu
+        musiccn_models_list_submenu = musiccn_submenu.children[1] # Get 'Models List' submenu
         musiccn_models_list_submenu.children = [
             MenuItem(
                 text=f"{C_BOLD}(Very Accurate, Slow){C_RESET} {C_AI}MSD_musicnn_big{C_RESET}",
@@ -379,7 +369,7 @@ class InteractiveMenu:
     def _handle_selection(self) -> bool:
         """
         Handle menu item selection.
-asd
+        asd
         Returns:
             bool: False if the menu should exit, True otherwise
         """
@@ -463,9 +453,7 @@ asd
             if isinstance(new_value, float):
                 new_value = round(new_value, 1)
             item.callback(new_value)
-            if item.text == "Models Count":
-                self.musicnn_settings.save_settings()  # Save MusicnnSettings
-            elif item.text == "Threshold Weight" and item.parent.text == "Musicnn AI Tagger":
+            if item.text == "Threshold Weight" and item.parent.text == "Musicnn AI Tagger":
                 self.musicnn_settings.save_settings()  # Save MusicnnSettings
             elif item.text == "Genres Count":
                 self.musicnn_settings.save_settings()  # Save MusicnnSettings
@@ -500,9 +488,7 @@ asd
             if isinstance(new_value, float):
                 new_value = round(new_value, 1)
             item.callback(new_value)
-            if item.text == "Models Count":
-                self.musicnn_settings.save_settings()  # Save MusicnnSettings
-            elif item.text == "Threshold Weight" and item.parent.text == "Musicnn AI Tagger":
+            if item.text == "Threshold Weight" and item.parent.text == "Musicnn AI Tagger":
                 self.musicnn_settings.save_settings()  # Save MusicnnSettings
             elif item.text == "Genres Count":
                 self.musicnn_settings.save_settings()  # Save MusicnnSettings
@@ -564,6 +550,9 @@ asd
 
         music_files = self.music_tagger.find_music_files(music_directory)
         print(f"🔎 Found {len(music_files)} supported music files in {music_directory}")
+
+        enabled_models_list = [model_name for model_name, is_enabled in self.musicnn_settings.enabled_models.items() if is_enabled]
+        print(f"Using {len(enabled_models_list)} AI models: {C_AI}{', '.join(enabled_models_list)}{C_RESET}") # Print model count and list
 
         # Start worker processes
         self._start_workers(self.musicnn_settings)
@@ -726,10 +715,6 @@ asd
     # Callback methods - Updated to use separate settings classes
     def _toggle_musiccn_enabled(self) -> None:
         self.musicnn_settings.enabled = not self.musicnn_settings.enabled  # Use musicnn_settings
-        self.musicnn_settings.save_settings()  # Save Musicnn settings
-
-    def _set_musiccn_model_count(self, value: int) -> None:
-        self.musicnn_settings.model_count = int(value)  # Use musicnn_settings
         self.musicnn_settings.save_settings()  # Save Musicnn settings
 
     def _toggle_musiccn_model_enabled(self, model_name: str) -> None:
