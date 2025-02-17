@@ -4,6 +4,9 @@ import pathlib
 from dataclasses import dataclass, field
 from typing import Callable, Optional, List, Any
 import os
+
+from numpy.f2py.cfuncs import callbacks
+
 # Set TF_CPP_MIN_LOG_LEVEL environment variable to suppress TensorFlow messages
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # remove it for debugging
 import platform
@@ -111,7 +114,7 @@ class InteractiveMenu:
         self.root_directory = ''
         self.music_tagger = music_tagger  # Store MusicTagger instance
         self.current_menu: List[MenuItem] = []
-        self.selected_index = 0
+        self.selected_index = 1
         self.event_queue = Queue()
         self._setup_root_menu()
 
@@ -123,6 +126,11 @@ class InteractiveMenu:
     def _setup_root_menu(self) -> None:
         """Initialize the root menu structure with all submenus and items."""
         root_items = [
+            MenuItem(
+                text="-- Music Tagger Menu --",  # Placeholder "header" item
+                type=MenuItemType.ACTION,  # Use ACTION type
+                callback=None  # No action when selected
+            ),
             MenuItem(
                 text="Select Music Root Folder",
                 type=MenuItemType.ACTION,
@@ -145,7 +153,7 @@ class InteractiveMenu:
             )
         ]
 
-        settings_submenu = root_items[2]  # Get the 'Settings' submenu item
+        settings_submenu = root_items[3]  # Get the 'Settings' submenu item
         settings_submenu.children = [
             MenuItem(
                 text="Processing Engine",
@@ -248,19 +256,19 @@ class InteractiveMenu:
     def _draw_menu(self) -> None:
         """Render the current menu state to the console."""
         self._clear_screen()
-        print("\nMusic Tagger Menu")
-        print("================")
-
         if self.settings.default_music_dir:
             print(f"Default music dir: {self.settings.default_music_dir}")
             from music_tagger import MusicTagger
             MusicTagger().get_music_files_count(self.settings.default_music_dir)
             if self.settings.auto_apply_tags:
                 print(f"Auto apply tags setting state is ON [u can change it on settings]")
-            print("================\n\n")
+            print("================\n")
 
         for i, item in enumerate(self.current_menu):
-            prefix = "→ " if i == self.selected_index else "  "
+            if item.text == "-- Music Tagger Menu --":  # Check for the placeholder item
+                prefix = "  "  # Always use space prefix for placeholder
+            else:
+                prefix = "→ " if i == self.selected_index else "  " # Standard prefix logic
 
             if item.type == MenuItemType.TOGGLE:
                 value = item.value()
@@ -274,7 +282,6 @@ class InteractiveMenu:
 
         print(
             "\nUse ↑↓ to navigate, ← → to modify values\nEnter to select, <—Backspace to go back to parent menu\nEsc to go root menu")  # Updated navigation instructions
-
     def _handle_input(self) -> bool:
         """
         Handle keyboard input events.
@@ -286,10 +293,21 @@ class InteractiveMenu:
             event = keyboard.read_event(suppress=True)
             if event.event_type == keyboard.KEY_UP:  # Changed to KEY_UP for more reliable key press detection
                 if event.name == 'up':
+                    original_index = self.selected_index
                     self.selected_index = (self.selected_index - 1) % len(self.current_menu)
+                    if self.current_menu[self.selected_index].text == "-- Music Tagger Menu --": # Skip placeholder
+                        self.selected_index = (self.selected_index - 1) % len(self.current_menu)
+                        if self.selected_index == original_index: # Handle case where only item is placeholder or menu is empty
+                            self.selected_index = 1 # Reset to top or handle as needed
+
                     break
                 elif event.name == 'down':
+                    original_index = self.selected_index
                     self.selected_index = (self.selected_index + 1) % len(self.current_menu)
+                    if self.current_menu[self.selected_index].text == "-- Music Tagger Menu --": # Skip placeholder
+                        self.selected_index = (self.selected_index + 1) % len(self.current_menu)
+                        if self.selected_index == original_index: # Handle case where only item is placeholder or menu is empty
+                            self.selected_index = 1 # Reset to top or handle as needed
                     break
                 elif event.name == 'enter':
                     return self._handle_selection()
@@ -335,7 +353,7 @@ asd
         """
         if self.current_menu != self.root_menu:  # Go back to root
             self.current_menu = self.root_menu
-            self.selected_index = 0
+            self.selected_index = 1
         return True
 
     def _handle_back(self) -> bool:
@@ -352,19 +370,18 @@ asd
         if self.current_menu == self.root_menu:
             logger.info("_handle_back: Current menu is root menu, returning True")
             return True
-
+        logger.info(self.current_menu)
         # Check if the current menu has a parent
         if self.current_menu and self.current_menu[0].parent:
             parent_menu_item = self.current_menu[0].parent
 
-            if parent_menu_item.text == 'Settings':
+            if parent_menu_item.text == 'Settings' and self.current_menu[0].text == 'Processing Engine':
                 if self.current_menu != self.root_menu:  # Go back to root
                     self.current_menu = self.root_menu
-                    self.selected_index = 0
+                    self.selected_index = 1
                 return True
 
             self.current_menu = parent_menu_item.children
-            self.selected_index = self.selected_index  # Reset index to the top of the parent menu
         else:
             logger.info("_handle_back: No parent menu found or current_menu is empty or has no parent, staying in current menu.")
 
@@ -529,7 +546,8 @@ asd
         logger.info(f"Music genre tagging process completed for directory: {music_directory}")
 
         input("\nPress Enter to continue...")  # Pause to show completion message
-        return True  # Back to menu # Corrected to return to menu after processing
+        self.selected_index = 0  # Reset selected index to the first item
+        return True  # Return to menu after processing
 
     def _select_folder(self) -> bool:
         """
