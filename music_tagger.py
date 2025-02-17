@@ -60,10 +60,10 @@ def worker_process(input_queue: multiprocessing.Queue, output_queue: multiproces
         try:
             ai_genres_dict = get_musicnn_tags(
                 music_path=file_path,
-                ai_model_count=musicnn_settings.model_count,
                 ai_genres_count=musicnn_settings.genres_count,
                 max_genres_return_count=5,
-                min_weight=musicnn_settings.threshold_weight
+                min_weight=musicnn_settings.threshold_weight,
+                enabled_models_config=musicnn_settings.enabled_models # Pass enabled models config
             )
             output_queue.put((file_path, ai_genres_dict))  # Send results back
         except Exception as e:
