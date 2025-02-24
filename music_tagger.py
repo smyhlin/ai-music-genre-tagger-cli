@@ -277,12 +277,15 @@ class MusicTagger:
         """
         suggested_genres_ai = []
         suggested_genres_lastfm = []
+        ai_genres_dict_weighted = {} # To store AI genres with weights
+        lastfm_tags_weights_list = [] # To store LastFM genres with weights
 
         # Retrieve AI genre suggestions from cache
         if file_path in self.ai_genre_suggestions_cache:
             logger.debug(f"Using cached AI genre suggestions for: {file_path}") # Debug log instead of info
             ai_genres_dict = self.ai_genre_suggestions_cache[file_path]
             suggested_genres_ai = list(ai_genres_dict.keys())
+            ai_genres_dict_weighted = ai_genres_dict # Get the dict with weights
         else:
             logger.error(f"AI genre suggestions not found in cache for: {file_path}. This should not happen if pre-fetching is enabled.")
             ai_genres_dict = {} # Fallback to empty dict to avoid errors
@@ -303,23 +306,59 @@ class MusicTagger:
                 top_n=5, # Fixed value, not from settings
                 min_weight=lastfm_settings.threshold_weight * 100 # LastFM weight is percentage based
             )
+            lastfm_tags_weights_list = [(tag_name, int(tag_weight)) for tag_name, tag_weight in lastfm_tags_weights] # Ensure weight is int
             suggested_genres_lastfm = [tag_name for tag_name, _ in lastfm_tags_weights]
+        else:
+            lastfm_tags_weights_list = [] # Ensure it's empty if lastfm is disabled
 
         suggested_genres_all = suggested_genres_ai + suggested_genres_lastfm
         suggested_genres_all_unique = sorted(list(set(suggested_genres_all)), key=suggested_genres_all.index)
 
         colored_print(C_AI, f"{C_BOLD}AI Suggested genres:{C_RESET}")
         if suggested_genres_ai or suggested_genres_lastfm:
-            max_len = max(len(suggested_genres_ai), len(suggested_genres_lastfm))
-            ai_header = f"{C_AI}AI Genres{C_RESET}"
-            lastfm_header = f"{C_LASTFM}Last.fm Genres{C_RESET}"
-            print(f"| {ai_header:<20} | {lastfm_header:<20} |")
-            print(f"|{'-'*22}|{'-'*22}|")
+            ai_genres_display = []
+            lastfm_genres_display = []
 
+            max_ai_genre_len = len("AI Genres")
+            max_lastfm_genre_len = len("Last.fm Genres")
+            max_ai_weight_len = 0
+            max_lastfm_weight_len = 0
+            weight_display_len = 7 # Fixed width for weight display including parenthesis and percentage
+
+            for genre in suggested_genres_ai:
+                weight_str = f"({ai_genres_dict_weighted.get(genre, 0.0)*100:.0f}%)" # Convert to percentage
+                display_str = f"{genre}" # Genre only for length calculation
+                ai_genres_display.append((genre, weight_str)) # Store genre and weight separately
+                max_ai_genre_len = max(max_ai_genre_len, len(display_str)) # Update max length for genre only
+                max_ai_weight_len = max(max_ai_weight_len, len(weight_str)) # Update max weight length, although fixed width is used
+
+
+            for genre, weight in lastfm_tags_weights_list:
+                weight_str = f"({weight}%)"
+                display_str = f"{genre}" # Genre only for length calculation
+                lastfm_genres_display.append((genre, weight_str)) # Store genre and weight separately
+                max_lastfm_genre_len = max(max_lastfm_genre_len, len(display_str)) # Update max genre length
+                max_lastfm_weight_len = max(max_lastfm_weight_len, len(weight_str)) # Update max weight length, although fixed width is used
+
+
+            ai_header = f"{C_AI}AI Genres (accuracy){C_RESET}" # Header with "(accuracy)"
+            lastfm_header = f"{C_LASTFM}Last.fm Genres (accuracy){C_RESET}" # Header with "(accuracy)"
+
+            print(f"| {ai_header:<{max_ai_genre_len + weight_display_len + 1}} | {lastfm_header:<{max_lastfm_genre_len + weight_display_len + 1}} |")
+            print(f"|{'-'*(max_ai_genre_len + weight_display_len + 3)}|{'-'*(max_lastfm_genre_len + weight_display_len + 6)}|")
+
+
+            max_len = max(len(ai_genres_display), len(lastfm_genres_display))
             for i in range(max_len):
-                ai_genre = suggested_genres_ai[i] if i < len(suggested_genres_ai) else ""
-                lastfm_genre = suggested_genres_lastfm[i] if i < len(suggested_genres_lastfm) else ""
-                print(f"| {C_AI}{ai_genre:<20}{C_RESET} | {C_LASTFM}{lastfm_genre:<20}{C_RESET} |")
+                ai_genre_tuple = ai_genres_display[i] if i < len(ai_genres_display) else ("", "")
+                lastfm_genre_tuple = lastfm_genres_display[i] if i < len(lastfm_genres_display) else ("", "")
+
+                ai_genre, ai_weight_str = ai_genre_tuple
+                lastfm_genre, lastfm_weight_str = lastfm_genre_tuple
+
+
+                print(f"| {C_AI}{ai_genre:<{max_ai_genre_len}} {ai_weight_str:>{weight_display_len}}{C_RESET} | {C_LASTFM}{lastfm_genre:<{max_lastfm_genre_len}} {lastfm_weight_str:>{weight_display_len+3}}{C_RESET} |") # Adjusted width and right align weights with fixed weight display width
+
         else:
             colored_print(C_AI, "No genres suggested from AI or Last.fm.")
 
