@@ -11,11 +11,39 @@ from .models import TagModel
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+def _remove_duplicate_tags(tags_weights: List[Tuple[str, int]]) -> List[Tuple[str, int]]:
+    """
+    Removes duplicate or very similar tags from a list of tags and weights.
+    Keeps only the first occurrence of similar tags, prioritizing shorter tags.
+
+    Args:
+        tags_weights: A list of tuples, where each tuple is (tag name, tag weight).
+
+    Returns:
+        A list of tuples with duplicate tags removed.
+    """
+    unique_tags_weights: List[Tuple[str, int]] = []
+    seen_tags: List[str] = []
+
+    for tag_name, tag_weight in tags_weights:
+        is_duplicate = False
+        tag_lower = tag_name.lower()
+        for seen_tag in seen_tags:
+            if tag_lower in seen_tag or seen_tag in tag_lower: # Check if one tag is substring of another
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            unique_tags_weights.append((tag_name, tag_weight))
+            seen_tags.append(tag_lower)
+    return unique_tags_weights
+
+
 def get_lastfm_tags(artist_name: str, track_name: str, top_n: int = 5, min_weight: float = 60) -> List[Tuple[str, int]]:
     """
     Retrieves top tags and their weights for a given music track from Last.fm.
     If track tags are not found, falls back to artist tags.
     Filters tags by min_weight and returns top N tags.
+    Removes duplicate or very similar tags.
 
     Args:
         artist_name: The name of the artist.
@@ -51,8 +79,12 @@ def get_lastfm_tags(artist_name: str, track_name: str, top_n: int = 5, min_weigh
         filtered_tags = [(tag, weight) for tag, weight in all_tags_weights if weight >= min_weight]
     else:
         filtered_tags = all_tags_weights # Keep all if total weight is zero to avoid division by zero errors
-    sorted_tags = sorted(filtered_tags, key=lambda item: item[1], reverse=True)
-    return sorted_tags[:top_n]
+    sorted_tags_weights = sorted(filtered_tags, key=lambda item: item[1], reverse=True)
+
+    # Remove duplicate tags
+    deduplicated_tags_weights = _remove_duplicate_tags(sorted_tags_weights)
+
+    return deduplicated_tags_weights[:top_n]
 
 
 def main(artist_name: str, track_name: str) -> None:
@@ -71,7 +103,7 @@ def main(artist_name: str, track_name: str) -> None:
         tags_and_weights = get_lastfm_tags(artist_name, track_name, top_n=top_n, min_weight=min_weight_threshold)
 
         if tags_and_weights:
-            print(f"\nTop {top_n} tags (>= {min_weight_threshold:.0f}% weight) for '{track_name}' by '{artist_name}':")
+            print(f"\nTop {top_n} tags (>= {min_weight_threshold:.0f}% weight) for '{track_name}' by '{artist_name}' (Duplicates Removed):")
             for tag_name, tag_weight in tags_and_weights:
                 print(f"- {tag_name} (Weight: {tag_weight})")
         else:
